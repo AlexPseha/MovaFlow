@@ -1,0 +1,36 @@
+## Visual Studio / .NET build outputs
+[Bb]in/
+[Oo]bj/
+[Pp]ublish/
+bin_out/
+*.exe
+*.dll
+*.pdb
+*.msi
+*.appx
+*.appxbundle
+
+## IDE & Tooling
+.vs/
+.vscode/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+## Runtime & Local configs
+settings.json
+*.log
+*.tmp
+test_out.txt
+
+## Scratch test scripts & temp images
+*.png
+*.jpg
+inspect_img.ps1
+test_crop.ps1
+gen_preview.ps1
+build_ico_v1.ps1
+auto_notepad_test.ps1
+run_live_test.ps1
+test_suite.ps1

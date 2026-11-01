@@ -1,0 +1,155 @@
+using System.IO;
+using MovaFlow.Core;
+using MovaFlow.Localization;
+using MovaFlow.Security;
+
+namespace MovaFlow.Tests;
+
+public static class UnitTests
+{
+    public static int RunAll()
+    {
+        int passed = 0;
+        int failed = 0;
+
+        void Assert(bool condition, string testName)
+        {
+            if (condition)
+            {
+                Console.WriteLine($"[PASS] {testName}");
+                passed++;
+            }
+            else
+            {
+                Console.ForegroundColor = ConsoleColor.Red;
+                Console.WriteLine($"[FAIL] {testName}");
+                Console.ResetColor();
+                failed++;
+            }
+        }
+
+        Console.WriteLine("=== Running MovaFlow Self-Tests ===");
+
+        // 1. LayoutMatrix Tests (Ukrainian)
+        Assert(LayoutMatrix.EnToUk("ghbdsn") == "привіт", "LayoutMatrix: 'ghbdsn' -> 'привіт'");
+        Assert(LayoutMatrix.UkToEn("руддщ") == "hello", "LayoutMatrix: 'руддщ' -> 'hello'");
+        Assert(LayoutMatrix.EnToUk("Ckfdf erhf]ys!") == "Слава україні!", "LayoutMatrix: Special letters 'і', 'ї' & punctuation");
+
+        // 2. LayoutMatrix Tests (Russian)
+        Assert(LayoutMatrix.EnToRu("ghbdtn") == "привет", "LayoutMatrix: 'ghbdtn' -> 'привет' (RU)");
+        Assert(LayoutMatrix.RuToEn("привет") == "ghbdtn", "LayoutMatrix: 'привет' -> 'ghbdtn' (RU)");
+        Assert(LayoutMatrix.EnToRu("s]'`") == "ыъэё", "LayoutMatrix: RU special letters 'ы', 'ъ', 'э', 'ё'");
+
+        // 3. NgramDetector Tests
+        Assert(NgramDetector.IsLikelyCyrillicMistypedAsEnglish("ghbd"), "NgramDetector: 'ghbd' detected as mistyped Cyrillic");
+        Assert(NgramDetector.IsLikelyEnglishMistypedAsCyrillic("рудд"), "NgramDetector: 'рудд' detected as mistyped ENG");
+        Assert(!NgramDetector.IsLikelyCyrillicMistypedAsEnglish("hello"), "NgramDetector: 'hello' is not mistyped");
+        Assert(!NgramDetector.IsLikelyEnglishMistypedAsCyrillic("привіт"), "NgramDetector: 'привіт' is not mistyped");
+        Assert(NgramDetector.ContainsRussianSpecificLetters("это"), "NgramDetector: 'это' has RU specific letters");
+        Assert(NgramDetector.ContainsUkrainianSpecificLetters("привіт"), "NgramDetector: 'привіт' has UK specific letters");
+
+        // 4. WordAnalyzer Tests
+        var analyzer = new WordAnalyzer();
+        var res1 = analyzer.Analyze("ghbdsn", ConversionMode.Both, isOnTheFly: false);
+        Assert(res1.ShouldTransform && res1.TransformedText == "привіт" && res1.TargetLanguage == "uk", "WordAnalyzer: delimiter 'ghbdsn' -> 'привіт' (uk)");
+
+        var resRu = analyzer.Analyze("ghbdtn", ConversionMode.Both, isOnTheFly: false);
+        Assert(resRu.ShouldTransform && resRu.TransformedText == "привет" && resRu.TargetLanguage == "ru", "WordAnalyzer: delimiter 'ghbdtn' -> 'привет' (ru)");
+
+        var res2 = analyzer.Analyze("руддщ", ConversionMode.Both, isOnTheFly: false);
+        Assert(res2.ShouldTransform && res2.TransformedText == "hello", "WordAnalyzer: delimiter 'руддщ' -> 'hello'");
+
+        var res3 = analyzer.Analyze("ghbd", ConversionMode.Both, isOnTheFly: true);
+        Assert(res3.ShouldTransform && res3.TransformedText == "прив", "WordAnalyzer: on-the-fly 'ghbd' -> 'прив'");
+
+        var res4 = analyzer.Analyze("hello", ConversionMode.Both, isOnTheFly: false);
+        Assert(!res4.ShouldTransform, "WordAnalyzer: valid word 'hello' must not be changed");
+
+        // 2-Letter Words Tests
+        var resWtFly = analyzer.Analyze("wt", ConversionMode.Both, isOnTheFly: true);
+        Assert(resWtFly.ShouldTransform && resWtFly.TransformedText == "це", "WordAnalyzer: on-the-fly 'wt' -> 'це'");
+
+        var resWtDelim = analyzer.Analyze("wt", ConversionMode.Both, isOnTheFly: false);
+        Assert(resWtDelim.ShouldTransform && resWtDelim.TransformedText == "це", "WordAnalyzer: delimiter 'wt' -> 'це'");
+
+        var resYtFly = analyzer.Analyze("yt", ConversionMode.Both, isOnTheFly: true);
+        Assert(resYtFly.ShouldTransform && resYtFly.TransformedText == "не", "WordAnalyzer: on-the-fly 'yt' -> 'не'");
+
+        var resLtFly = analyzer.Analyze("lt", ConversionMode.Both, isOnTheFly: true);
+        Assert(resLtFly.ShouldTransform && resLtFly.TransformedText == "де", "WordAnalyzer: on-the-fly 'lt' -> 'де'");
+
+        var resZrFly = analyzer.Analyze("zr", ConversionMode.Both, isOnTheFly: true);
+        Assert(resZrFly.ShouldTransform && resZrFly.TransformedText == "як", "WordAnalyzer: on-the-fly 'zr' -> 'як'");
+
+        var resZrDelim = analyzer.Analyze("zr", ConversionMode.Both, isOnTheFly: false);
+        Assert(resZrDelim.ShouldTransform && resZrDelim.TransformedText == "як", "WordAnalyzer: delimiter 'zr' -> 'як'");
+
+        var resSpravyDelim = analyzer.Analyze("cghfdb", ConversionMode.Both, isOnTheFly: false);
+        Assert(resSpravyDelim.ShouldTransform && resSpravyDelim.TransformedText == "справи", "WordAnalyzer: delimiter 'cghfdb' -> 'справи'");
+
+        var resSpravdiDelim = analyzer.Analyze("cghfdls", ConversionMode.Both, isOnTheFly: false);
+        Assert(resSpravdiDelim.ShouldTransform && resSpravdiDelim.TransformedText == "справді", "WordAnalyzer: delimiter 'cghfdls' -> 'справді'");
+
+        // HermitDave Frequency Dictionary integration test
+        var resFreqUk = analyzer.Analyze("df;kbdt", ConversionMode.Both, isOnTheFly: false);
+        Assert(resFreqUk.ShouldTransform && resFreqUk.TransformedText == "важливе", "WordAnalyzer: frequency dict 'df;kbdt' -> 'важливе'");
+
+        // Valid 2-letter English words protection
+        var resTo = analyzer.Analyze("to", ConversionMode.Both, isOnTheFly: false);
+        Assert(!resTo.ShouldTransform, "WordAnalyzer: English 'to' must not be changed");
+
+        var resIn = analyzer.Analyze("in", ConversionMode.Both, isOnTheFly: false);
+        Assert(!resIn.ShouldTransform, "WordAnalyzer: English 'in' must not be changed");
+
+        var resIs = analyzer.Analyze("is", ConversionMode.Both, isOnTheFly: false);
+        Assert(!resIs.ShouldTransform, "WordAnalyzer: English 'is' must not be changed");
+
+        // Words starting with ',' ('б') and '.' ('ю')
+        var resBag = analyzer.Analyze(",fu", ConversionMode.Both, isOnTheFly: false);
+        Assert(resBag.ShouldTransform && resBag.TransformedText == "баг", "WordAnalyzer: delimiter ',fu' -> 'баг'");
+
+        var resBude = analyzer.Analyze(",elt", ConversionMode.Both, isOnTheFly: false);
+        Assert(resBude.ShouldTransform && resBude.TransformedText == "буде", "WordAnalyzer: delimiter ',elt' -> 'буде'");
+
+        var resUser = analyzer.Analyze(".pth", ConversionMode.Both, isOnTheFly: false);
+        Assert(resUser.ShouldTransform && resUser.TransformedText == "юзер", "WordAnalyzer: delimiter '.pth' -> 'юзер'");
+
+        // Reverse: Cyrillic mistyped as English
+        var resBug = analyzer.Analyze("игп", ConversionMode.Both, isOnTheFly: false);
+        Assert(resBug.ShouldTransform && resBug.TransformedText == "bug", "WordAnalyzer: delimiter 'игп' -> 'bug'");
+
+        // Mode filtering
+        var resUkrOnly = analyzer.Analyze("ghbdsn", ConversionMode.UkrToEng, isOnTheFly: false);
+        Assert(!resUkrOnly.ShouldTransform, "WordAnalyzer: UkrToEng mode ignores Latin mistypes");
+
+        // 5. ExclusionManager Tests
+        string tempSettings = Path.GetTempFileName();
+        try
+        {
+            File.WriteAllText(tempSettings, """
+            {
+              "ExcludedApplications": ["cmd.exe", "powershell.exe"],
+              "ExcludedWebsites": ["privat24.ua", "bank.gov.ua"]
+            }
+            """);
+
+            var exclusion = new ExclusionManager(tempSettings);
+            Assert(exclusion.IsAppExcluded("cmd.exe"), "ExclusionManager: 'cmd.exe' is excluded");
+            Assert(exclusion.IsAppExcluded("cmd"), "ExclusionManager: 'cmd' (without .exe) is excluded");
+            Assert(!exclusion.IsAppExcluded("notepad.exe"), "ExclusionManager: 'notepad.exe' is allowed");
+            Assert(exclusion.IsDomainExcluded("https://privat24.ua/login"), "ExclusionManager: 'privat24.ua' is excluded");
+            Assert(!exclusion.IsDomainExcluded("github.com"), "ExclusionManager: 'github.com' is allowed");
+        }
+        finally
+        {
+            if (File.Exists(tempSettings)) File.Delete(tempSettings);
+        }
+
+        // 6. Localization Tests
+        Assert(Strings.AppTitle(UiLanguage.Uk).Contains("Розумний"), "Localization: UK title");
+        Assert(Strings.AppTitle(UiLanguage.En).Contains("Smart"), "Localization: EN title");
+
+        Console.WriteLine($"\n=== Test Results: Passed: {passed}, Failed: {failed} ===");
+        return failed == 0 ? 0 : 1;
+    }
+}

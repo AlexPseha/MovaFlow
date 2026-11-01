@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net9.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ApplicationIcon>..\resources\movaflow.ico</ApplicationIcon>
+    <AssemblyName>MovaFlow-Setup</AssemblyName>
+    <RootNamespace>MovaFlow.Installer</RootNamespace>
+    <PublishSingleFile>true</PublishSingleFile>
+    <SelfContained>true</SelfContained>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Using Include="System.IO" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="..\publish_portable\MovaFlow.exe">
+      <Link>Payload\MovaFlow-Portable.exe</Link>
+    </EmbeddedResource>
+    <EmbeddedResource Include="..\publish_lite\MovaFlow.exe">
+      <Link>Payload\MovaFlow-Lite.exe</Link>
+    </EmbeddedResource>
+    <EmbeddedResource Include="..\resources\movaflow.ico">
+      <Link>Payload\movaflow.ico</Link>
+    </EmbeddedResource>
+  </ItemGroup>
+
+</Project>
