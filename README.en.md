@@ -71,23 +71,13 @@ MovaFlow is built with a strict privacy-first foundation:
 
 ---
 
-## Support the Project
-
-MovaFlow is a free, open-source project without ads. If it saves you time and makes typing smoother, you can support its continued development:
-
-👉 **[💙💛 Support MovaFlow via Privat24](https://www.privat24.ua/send/k6jqc)**
-
-Thank you for your support!
-
----
-
 ## For Developers
 
 The project is written in **C# (.NET 9.0 Windows Forms / Win32 API)** with a modular architecture:
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-username/MovaFlow.git
+git clone https://github.com/AlexPseha/MovaFlow.git
 cd MovaFlow
 
 # Run the automated unit test suite (41 tests)
