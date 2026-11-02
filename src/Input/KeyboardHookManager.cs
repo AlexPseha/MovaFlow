@@ -71,6 +71,8 @@ public class KeyboardHookManager : IDisposable
     private IntPtr _hookId = IntPtr.Zero;
     private readonly StringBuilder _wordBuffer = new();
     private volatile bool _isReplacing;
+    private bool _justCorrected;
+    private string? _previousLanguageBeforeCorrection;
 
     public bool IsPaused { get; set; }
     public int CorrectionsCount { get; private set; }
@@ -157,6 +159,7 @@ public class KeyboardHookManager : IDisposable
         if (!_securityGuard.IsInputSecureAndAllowed())
         {
             ResetBuffer();
+            _justCorrected = false;
             return false;
         }
 
@@ -164,6 +167,7 @@ public class KeyboardHookManager : IDisposable
         if (IsResetKey(vk))
         {
             ResetBuffer();
+            _justCorrected = false;
             return false;
         }
 
@@ -175,18 +179,34 @@ public class KeyboardHookManager : IDisposable
                 HandleDelimiter('\0');
             }
             ResetBuffer();
+            _justCorrected = false;
             return false; // let Windows execute Enter cleanly
         }
 
         // 4. Backspace
         if (vk == 0x08)
         {
+            // Revert layout on immediate Backspace after an auto-correction
+            if (_justCorrected)
+            {
+                if (_exclusionManager.Settings.EnableRevertOnBackspace &&
+                    _exclusionManager.Settings.SwitchSystemLayout &&
+                    !string.IsNullOrEmpty(_previousLanguageBeforeCorrection))
+                {
+                    SystemLayoutSwitcher.SwitchLanguage(IntPtr.Zero, _previousLanguageBeforeCorrection);
+                }
+                _justCorrected = false;
+                _previousLanguageBeforeCorrection = null;
+            }
+
             if (_wordBuffer.Length > 0)
             {
                 _wordBuffer.Length--;
             }
             return false;
         }
+
+        _justCorrected = false;
 
         // 5. Translate Key to Unicode Char
         char typedChar = GetCharFromKey((uint)vk, (uint)scanCode);
@@ -224,6 +244,7 @@ public class KeyboardHookManager : IDisposable
             _isReplacing = true;
             try
             {
+                string previousLang = SystemLayoutSwitcher.GetActiveWindowLanguage();
                 if (_exclusionManager.Settings.SwitchSystemLayout)
                 {
                     SystemLayoutSwitcher.SwitchLanguage(IntPtr.Zero, result.TargetLanguage);
@@ -236,6 +257,9 @@ public class KeyboardHookManager : IDisposable
 
                 // Reset buffer so subsequent delimiters or keys don't re-transform or jump
                 _wordBuffer.Clear();
+
+                _previousLanguageBeforeCorrection = previousLang;
+                _justCorrected = true;
 
                 CorrectionsCount++;
                 CorrectionApplied?.Invoke(CorrectionsCount);
@@ -263,6 +287,7 @@ public class KeyboardHookManager : IDisposable
                 _isReplacing = true;
                 try
                 {
+                    string previousLang = SystemLayoutSwitcher.GetActiveWindowLanguage();
                     if (_exclusionManager.Settings.SwitchSystemLayout)
                     {
                         SystemLayoutSwitcher.SwitchLanguage(IntPtr.Zero, result.TargetLanguage);
@@ -271,6 +296,9 @@ public class KeyboardHookManager : IDisposable
                     // Replace typed word. If delimiter is '\0' (e.g. on Enter), do not append delimiter char.
                     string textToInsert = delimiter != '\0' ? result.TransformedText + delimiter : result.TransformedText;
                     InputSynthesizer.ReplaceText(currentWord.Length, textToInsert);
+
+                    _previousLanguageBeforeCorrection = previousLang;
+                    _justCorrected = true;
 
                     CorrectionsCount++;
                     CorrectionApplied?.Invoke(CorrectionsCount);
@@ -289,7 +317,8 @@ public class KeyboardHookManager : IDisposable
     private WordAnalyzerOptions GetAnalyzerOptions() => new(
         EnableUkrainian: _exclusionManager.Settings.EnableUkrainianLayout,
         EnableEnglish: _exclusionManager.Settings.EnableEnglishLayout,
-        EnableRussian: _exclusionManager.Settings.EnableRussianLayout
+        EnableRussian: _exclusionManager.Settings.EnableRussianLayout,
+        IsWordExcluded: _exclusionManager.IsWordExcluded
     );
 
     private void ResetBuffer()

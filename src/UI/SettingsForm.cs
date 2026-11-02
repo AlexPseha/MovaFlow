@@ -34,6 +34,7 @@ public class SettingsForm : Form
 
     private CheckBox _chkSwitchLayout = null!;
     private CheckBox _chkOnTheFly = null!;
+    private CheckBox _chkRevertOnBackspace = null!;
     private CheckBox _chkAutostart = null!;
 
     // Exclusions Tab
@@ -44,6 +45,13 @@ public class SettingsForm : Form
     private TextBox _txtNewSite = null!;
     private Button _btnAddSite = null!;
     private Button _btnRemoveSite = null!;
+    private ListBox _listWords = null!;
+    private TextBox _txtNewWord = null!;
+    private Button _btnAddWord = null!;
+    private Button _btnRemoveWord = null!;
+    private Label _lblApps = null!;
+    private Label _lblSites = null!;
+    private Label _lblWords = null!;
 
     // Security & Donate Tab
     public const string DefaultDonationUrl = "https://www.privat24.ua/send/k6jqc";
@@ -66,7 +74,7 @@ public class SettingsForm : Form
     private void InitializeComponents()
     {
         Text = Strings.SettingsTitle(_loc.CurrentLanguage);
-        Size = new Size(680, 600);
+        ClientSize = new Size(740, 560);
         StartPosition = FormStartPosition.CenterScreen;
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = false;
@@ -89,7 +97,7 @@ public class SettingsForm : Form
         _tabControl = new TabControl
         {
             Dock = DockStyle.Top,
-            Height = 480,
+            Height = 490,
             Padding = new Point(12, 6)
         };
 
@@ -119,7 +127,7 @@ public class SettingsForm : Form
             Text = Strings.BtnSave(_loc.CurrentLanguage),
             DialogResult = DialogResult.OK,
             Size = new Size(110, 36),
-            Location = new Point(430, 12),
+            Location = new Point(500, 12),
             BackColor = Color.FromArgb(0, 91, 187),
             ForeColor = Color.White,
             FlatStyle = FlatStyle.Flat
@@ -131,7 +139,7 @@ public class SettingsForm : Form
             Text = Strings.BtnCancel(_loc.CurrentLanguage),
             DialogResult = DialogResult.Cancel,
             Size = new Size(100, 36),
-            Location = new Point(550, 12),
+            Location = new Point(620, 12),
             FlatStyle = FlatStyle.Flat
         };
         _btnCancel.Click += (s, e) => Close();
@@ -198,41 +206,57 @@ public class SettingsForm : Form
             Location = new Point(20, 290),
             AutoSize = true
         };
-        _chkAutostart = new CheckBox
+        _chkRevertOnBackspace = new CheckBox
         {
-            Text = Strings.CheckAutostart(_loc.CurrentLanguage),
+            Text = Strings.CheckRevertOnBackspace(_loc.CurrentLanguage),
             Location = new Point(20, 320),
             AutoSize = true
         };
+        _chkAutostart = new CheckBox
+        {
+            Text = Strings.CheckAutostart(_loc.CurrentLanguage),
+            Location = new Point(20, 350),
+            AutoSize = true
+        };
 
-        page.Controls.AddRange(new Control[] { _grpLang, _grpLayouts, _grpMode, _chkSwitchLayout, _chkOnTheFly, _chkAutostart });
+        page.Controls.AddRange(new Control[] { _grpLang, _grpLayouts, _grpMode, _chkSwitchLayout, _chkOnTheFly, _chkRevertOnBackspace, _chkAutostart });
     }
 
     private void BuildExclusionsTab(TabPage page)
     {
-        page.Padding = new Padding(16);
+        page.Padding = new Padding(12);
 
-        // Left: Apps
-        var lblApps = new Label { Text = Strings.GroupApps(_loc.CurrentLanguage), Location = new Point(16, 12), AutoSize = true, Font = new Font(Font, FontStyle.Bold) };
-        _listApps = new ListBox { Location = new Point(16, 36), Size = new Size(295, 310) };
-        _btnAddApp = new Button { Text = Strings.BtnAddApp(_loc.CurrentLanguage), Location = new Point(16, 355), Size = new Size(160, 32) };
+        // Column 1: Apps (X = 16, Width = 224)
+        _lblApps = new Label { Text = Strings.GroupApps(_loc.CurrentLanguage), Location = new Point(16, 12), AutoSize = true, Font = new Font(Font, FontStyle.Bold) };
+        _listApps = new ListBox { Location = new Point(16, 36), Size = new Size(224, 270) };
+        _btnAddApp = new Button { Text = Strings.BtnAddApp(_loc.CurrentLanguage), Location = new Point(16, 355), Size = new Size(108, 32) };
         _btnAddApp.Click += (s, e) => AddAppClicked();
-        _btnRemoveApp = new Button { Text = Strings.BtnRemove(_loc.CurrentLanguage), Location = new Point(185, 355), Size = new Size(126, 32) };
+        _btnRemoveApp = new Button { Text = Strings.BtnRemove(_loc.CurrentLanguage), Location = new Point(132, 355), Size = new Size(108, 32) };
         _btnRemoveApp.Click += (s, e) => RemoveSelected(_listApps);
 
-        // Right: Sites
-        var lblSites = new Label { Text = Strings.GroupSites(_loc.CurrentLanguage), Location = new Point(330, 12), AutoSize = true, Font = new Font(Font, FontStyle.Bold) };
-        _listSites = new ListBox { Location = new Point(330, 36), Size = new Size(295, 270) };
-        _txtNewSite = new TextBox { Location = new Point(330, 316), Size = new Size(295, 28), PlaceholderText = "example.com" };
-        _btnAddSite = new Button { Text = Strings.BtnAddSite(_loc.CurrentLanguage), Location = new Point(330, 355), Size = new Size(150, 32) };
+        // Column 2: Sites (X = 256, Width = 224)
+        _lblSites = new Label { Text = Strings.GroupSites(_loc.CurrentLanguage), Location = new Point(256, 12), AutoSize = true, Font = new Font(Font, FontStyle.Bold) };
+        _listSites = new ListBox { Location = new Point(256, 36), Size = new Size(224, 270) };
+        _txtNewSite = new TextBox { Location = new Point(256, 316), Size = new Size(224, 28), PlaceholderText = "example.com" };
+        _btnAddSite = new Button { Text = Strings.BtnAddSite(_loc.CurrentLanguage), Location = new Point(256, 355), Size = new Size(108, 32) };
         _btnAddSite.Click += (s, e) => AddSiteClicked();
-        _btnRemoveSite = new Button { Text = Strings.BtnRemove(_loc.CurrentLanguage), Location = new Point(490, 355), Size = new Size(135, 32) };
+        _btnRemoveSite = new Button { Text = Strings.BtnRemove(_loc.CurrentLanguage), Location = new Point(372, 355), Size = new Size(108, 32) };
         _btnRemoveSite.Click += (s, e) => RemoveSelected(_listSites);
+
+        // Column 3: Words (X = 496, Width = 224)
+        _lblWords = new Label { Text = Strings.GroupWords(_loc.CurrentLanguage), Location = new Point(496, 12), AutoSize = true, Font = new Font(Font, FontStyle.Bold) };
+        _listWords = new ListBox { Location = new Point(496, 36), Size = new Size(224, 270) };
+        _txtNewWord = new TextBox { Location = new Point(496, 316), Size = new Size(224, 28), PlaceholderText = Strings.WordPlaceholder(_loc.CurrentLanguage) };
+        _btnAddWord = new Button { Text = Strings.BtnAddWord(_loc.CurrentLanguage), Location = new Point(496, 355), Size = new Size(108, 32) };
+        _btnAddWord.Click += (s, e) => AddWordClicked();
+        _btnRemoveWord = new Button { Text = Strings.BtnRemove(_loc.CurrentLanguage), Location = new Point(612, 355), Size = new Size(108, 32) };
+        _btnRemoveWord.Click += (s, e) => RemoveSelected(_listWords);
 
         page.Controls.AddRange(new Control[]
         {
-            lblApps, _listApps, _btnAddApp, _btnRemoveApp,
-            lblSites, _listSites, _txtNewSite, _btnAddSite, _btnRemoveSite
+            _lblApps, _listApps, _btnAddApp, _btnRemoveApp,
+            _lblSites, _listSites, _txtNewSite, _btnAddSite, _btnRemoveSite,
+            _lblWords, _listWords, _txtNewWord, _btnAddWord, _btnRemoveWord
         });
     }
 
@@ -312,6 +336,7 @@ public class SettingsForm : Form
 
         _chkSwitchLayout.Checked = s.SwitchSystemLayout;
         _chkOnTheFly.Checked = s.EnableOnTheFly;
+        _chkRevertOnBackspace.Checked = s.EnableRevertOnBackspace;
         _chkAutostart.Checked = AutostartHelper.IsAutostartEnabled();
         _chkPasswordProtection.Checked = s.EnablePasswordProtection;
 
@@ -320,6 +345,9 @@ public class SettingsForm : Form
 
         _listSites.Items.Clear();
         foreach (var site in s.ExcludedWebsites) _listSites.Items.Add(site);
+
+        _listWords.Items.Clear();
+        foreach (var word in s.ExcludedWords) _listWords.Items.Add(word);
     }
 
     private void SaveValues()
@@ -339,6 +367,7 @@ public class SettingsForm : Form
 
         s.SwitchSystemLayout = _chkSwitchLayout.Checked;
         s.EnableOnTheFly = _chkOnTheFly.Checked;
+        s.EnableRevertOnBackspace = _chkRevertOnBackspace.Checked;
         s.EnablePasswordProtection = _chkPasswordProtection.Checked;
         s.DonationUrl = DefaultDonationUrl;
 
@@ -346,6 +375,7 @@ public class SettingsForm : Form
 
         s.ExcludedApplications = _listApps.Items.Cast<string>().ToList();
         s.ExcludedWebsites = _listSites.Items.Cast<string>().ToList();
+        s.ExcludedWords = _listWords.Items.Cast<string>().ToList();
 
         _exclusionManager.Save();
         Close();
@@ -378,13 +408,21 @@ public class SettingsForm : Form
 
         _chkSwitchLayout.Text = Strings.CheckSwitchLayout(lang);
         _chkOnTheFly.Text = Strings.CheckOnTheFly(lang);
+        _chkRevertOnBackspace.Text = Strings.CheckRevertOnBackspace(lang);
         _chkAutostart.Text = Strings.CheckAutostart(lang);
         _chkPasswordProtection.Text = Strings.CheckPasswordProtection(lang);
+
+        _lblApps.Text = Strings.GroupApps(lang);
+        _lblSites.Text = Strings.GroupSites(lang);
+        _lblWords.Text = Strings.GroupWords(lang);
 
         _btnAddApp.Text = Strings.BtnAddApp(lang);
         _btnRemoveApp.Text = Strings.BtnRemove(lang);
         _btnAddSite.Text = Strings.BtnAddSite(lang);
         _btnRemoveSite.Text = Strings.BtnRemove(lang);
+        _btnAddWord.Text = Strings.BtnAddWord(lang);
+        _btnRemoveWord.Text = Strings.BtnRemove(lang);
+        _txtNewWord.PlaceholderText = Strings.WordPlaceholder(lang);
 
         _lnkDonate.Text = lang == UiLanguage.En
             ? "💙💛 Support MovaFlow development (Privat24)"
@@ -424,6 +462,18 @@ public class SettingsForm : Form
         {
             _listSites.Items.Add(clean);
             _txtNewSite.Clear();
+        }
+    }
+
+    private void AddWordClicked()
+    {
+        string raw = _txtNewWord.Text.Trim();
+        if (string.IsNullOrWhiteSpace(raw)) return;
+
+        if (!_listWords.Items.Contains(raw))
+        {
+            _listWords.Items.Add(raw);
+            _txtNewWord.Clear();
         }
     }
 

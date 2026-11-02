@@ -14,9 +14,8 @@ if ($LASTEXITCODE -ne 0) {
     exit $LASTEXITCODE
 }
 
-Copy-Item "publish_portable\MovaFlow.exe" "MovaFlow.exe" -Force
 Copy-Item "publish_portable\MovaFlow.exe" "MovaFlow-Portable.exe" -Force
-Write-Host "MovaFlow.exe and MovaFlow-Portable.exe ready!"
+Write-Host "MovaFlow-Portable.exe ready!"
 
 Write-Host "=== 2/3. Publishing MovaFlow Lite (Framework-Dependent, ~2.8 MB) ==="
 dotnet publish MovaFlow.csproj -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -o publish_lite
@@ -53,4 +52,4 @@ foreach ($d in $dirsToClean) {
 }
 
 Write-Host "All targets built successfully:"
-Get-Item 'MovaFlow.exe', 'MovaFlow-Portable.exe', 'MovaFlow-Lite.exe', 'MovaFlow-Setup.exe' | Format-Table Name, Length, LastWriteTime
+Get-Item 'MovaFlow-Portable.exe', 'MovaFlow-Lite.exe', 'MovaFlow-Setup.exe' | Format-Table Name, Length, LastWriteTime

@@ -23,6 +23,7 @@ settings.json
 *.log
 *.tmp
 test_out.txt
+graphify-out/
 
 ## Scratch test scripts & temp images
 *.png

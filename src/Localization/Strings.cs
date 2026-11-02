@@ -155,6 +155,12 @@ public static class Strings
         _ => "Виправляти слова на льоту (після перших 3–4 літер)"
     };
 
+    public static string CheckRevertOnBackspace(UiLanguage lang) => lang switch
+    {
+        UiLanguage.En => "Revert layout on Backspace after auto-correction",
+        _ => "Повертати розкладку при Backspace після автозаміни"
+    };
+
     public static string CheckAutostart(UiLanguage lang) => lang switch
     {
         UiLanguage.En => "Launch MovaFlow on Windows startup",
@@ -169,32 +175,50 @@ public static class Strings
 
     public static string GroupApps(UiLanguage lang) => lang switch
     {
-        UiLanguage.En => "Excluded Applications (Terminals, IDEs, etc.):",
-        _ => "Виключені програми (термінали, консолі, IDE тощо):"
+        UiLanguage.En => "Excluded Applications:",
+        _ => "Виключені програми:"
     };
 
     public static string GroupSites(UiLanguage lang) => lang switch
     {
-        UiLanguage.En => "Excluded Websites (Banking, Portals):",
-        _ => "Виключені веб-сайти (банківські, робочі портали):"
+        UiLanguage.En => "Excluded Websites:",
+        _ => "Виключені сайти:"
+    };
+
+    public static string GroupWords(UiLanguage lang) => lang switch
+    {
+        UiLanguage.En => "Excluded Words:",
+        _ => "Виключені слова:"
+    };
+
+    public static string WordPlaceholder(UiLanguage lang) => lang switch
+    {
+        UiLanguage.En => "e.g. NNG, API, SQL",
+        _ => "напр. ННГ, API, SQL"
     };
 
     public static string BtnAddApp(UiLanguage lang) => lang switch
     {
         UiLanguage.En => "Add Program...",
-        _ => "Додати програму..."
+        _ => "Додати..."
     };
 
     public static string BtnAddSite(UiLanguage lang) => lang switch
     {
         UiLanguage.En => "Add Site",
-        _ => "Додати сайт"
+        _ => "Додати"
+    };
+
+    public static string BtnAddWord(UiLanguage lang) => lang switch
+    {
+        UiLanguage.En => "Add Word",
+        _ => "Додати"
     };
 
     public static string BtnRemove(UiLanguage lang) => lang switch
     {
-        UiLanguage.En => "Remove Selected",
-        _ => "Видалити обране"
+        UiLanguage.En => "Remove",
+        _ => "Видалити"
     };
 
     public static string LabelDonateUrl(UiLanguage lang) => lang switch
