@@ -32,6 +32,13 @@ public class WordAnalyzer
         InitializeVocabularies();
     }
 
+    public bool IsKnownWord(string word)
+    {
+        if (string.IsNullOrWhiteSpace(word)) return false;
+        string lower = word.Trim().ToLowerInvariant();
+        return _ukDictionary.Contains(lower) || _enDictionary.Contains(lower) || _ruDictionary.Contains(lower);
+    }
+
     public TransformationResult Analyze(
         string rawWord,
         ConversionMode mode,

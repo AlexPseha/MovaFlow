@@ -35,6 +35,10 @@ public class SettingsForm : Form
     private CheckBox _chkSwitchLayout = null!;
     private CheckBox _chkOnTheFly = null!;
     private CheckBox _chkRevertOnBackspace = null!;
+    private CheckBox _chkSmartQuotes = null!;
+    private CheckBox _chkSmartDashes = null!;
+    private CheckBox _chkSmartTypography = null!;
+    private CheckBox _chkStuckShiftFix = null!;
     private CheckBox _chkAutostart = null!;
 
     // Exclusions Tab
@@ -197,29 +201,59 @@ public class SettingsForm : Form
         _chkSwitchLayout = new CheckBox
         {
             Text = Strings.CheckSwitchLayout(_loc.CurrentLanguage),
-            Location = new Point(20, 260),
+            Location = new Point(20, 255),
             AutoSize = true
         };
         _chkOnTheFly = new CheckBox
         {
             Text = Strings.CheckOnTheFly(_loc.CurrentLanguage),
-            Location = new Point(20, 290),
+            Location = new Point(20, 278),
             AutoSize = true
         };
         _chkRevertOnBackspace = new CheckBox
         {
             Text = Strings.CheckRevertOnBackspace(_loc.CurrentLanguage),
-            Location = new Point(20, 320),
+            Location = new Point(20, 301),
+            AutoSize = true
+        };
+        _chkSmartQuotes = new CheckBox
+        {
+            Text = Strings.CheckSmartQuotes(_loc.CurrentLanguage),
+            Location = new Point(20, 324),
+            AutoSize = true
+        };
+        _chkSmartDashes = new CheckBox
+        {
+            Text = Strings.CheckSmartDashes(_loc.CurrentLanguage),
+            Location = new Point(20, 347),
+            AutoSize = true
+        };
+        _chkSmartTypography = new CheckBox
+        {
+            Text = Strings.CheckSmartTypography(_loc.CurrentLanguage),
+            Location = new Point(20, 370),
+            AutoSize = true
+        };
+        _chkStuckShiftFix = new CheckBox
+        {
+            Text = Strings.CheckStuckShiftFix(_loc.CurrentLanguage),
+            Location = new Point(20, 393),
             AutoSize = true
         };
         _chkAutostart = new CheckBox
         {
             Text = Strings.CheckAutostart(_loc.CurrentLanguage),
-            Location = new Point(20, 350),
+            Location = new Point(20, 416),
             AutoSize = true
         };
 
-        page.Controls.AddRange(new Control[] { _grpLang, _grpLayouts, _grpMode, _chkSwitchLayout, _chkOnTheFly, _chkRevertOnBackspace, _chkAutostart });
+        page.Controls.AddRange(new Control[]
+        {
+            _grpLang, _grpLayouts, _grpMode,
+            _chkSwitchLayout, _chkOnTheFly, _chkRevertOnBackspace,
+            _chkSmartQuotes, _chkSmartDashes, _chkSmartTypography, _chkStuckShiftFix,
+            _chkAutostart
+        });
     }
 
     private void BuildExclusionsTab(TabPage page)
@@ -337,6 +371,10 @@ public class SettingsForm : Form
         _chkSwitchLayout.Checked = s.SwitchSystemLayout;
         _chkOnTheFly.Checked = s.EnableOnTheFly;
         _chkRevertOnBackspace.Checked = s.EnableRevertOnBackspace;
+        _chkSmartQuotes.Checked = s.EnableSmartQuotes;
+        _chkSmartDashes.Checked = s.EnableSmartDashes;
+        _chkSmartTypography.Checked = s.EnableSmartTypography;
+        _chkStuckShiftFix.Checked = s.EnableStuckShiftFix;
         _chkAutostart.Checked = AutostartHelper.IsAutostartEnabled();
         _chkPasswordProtection.Checked = s.EnablePasswordProtection;
 
@@ -368,6 +406,10 @@ public class SettingsForm : Form
         s.SwitchSystemLayout = _chkSwitchLayout.Checked;
         s.EnableOnTheFly = _chkOnTheFly.Checked;
         s.EnableRevertOnBackspace = _chkRevertOnBackspace.Checked;
+        s.EnableSmartQuotes = _chkSmartQuotes.Checked;
+        s.EnableSmartDashes = _chkSmartDashes.Checked;
+        s.EnableSmartTypography = _chkSmartTypography.Checked;
+        s.EnableStuckShiftFix = _chkStuckShiftFix.Checked;
         s.EnablePasswordProtection = _chkPasswordProtection.Checked;
         s.DonationUrl = DefaultDonationUrl;
 
@@ -409,6 +451,10 @@ public class SettingsForm : Form
         _chkSwitchLayout.Text = Strings.CheckSwitchLayout(lang);
         _chkOnTheFly.Text = Strings.CheckOnTheFly(lang);
         _chkRevertOnBackspace.Text = Strings.CheckRevertOnBackspace(lang);
+        _chkSmartQuotes.Text = Strings.CheckSmartQuotes(lang);
+        _chkSmartDashes.Text = Strings.CheckSmartDashes(lang);
+        _chkSmartTypography.Text = Strings.CheckSmartTypography(lang);
+        _chkStuckShiftFix.Text = Strings.CheckStuckShiftFix(lang);
         _chkAutostart.Text = Strings.CheckAutostart(lang);
         _chkPasswordProtection.Text = Strings.CheckPasswordProtection(lang);
 

@@ -161,6 +161,30 @@ public static class Strings
         _ => "Повертати розкладку при Backspace після автозаміни"
     };
 
+    public static string CheckSmartQuotes(UiLanguage lang) => lang switch
+    {
+        UiLanguage.En => "Smart quotes (« » for Cyrillic, “ ” for English)",
+        _ => "Розумні лапки (« » для укр, “ ” для англ)"
+    };
+
+    public static string CheckSmartDashes(UiLanguage lang) => lang switch
+    {
+        UiLanguage.En => "Smart dashes (convert ' - ' and ' -- ' to ' — ')",
+        _ => "Типографське тире (заміна « - » та « -- » на « — »)"
+    };
+
+    public static string CheckSmartTypography(UiLanguage lang) => lang switch
+    {
+        UiLanguage.En => "Typography (ellipsis …, symbols © ® ™)",
+        _ => "Типографіка (трикрапка …, символи © ® ™)"
+    };
+
+    public static string CheckStuckShiftFix(UiLanguage lang) => lang switch
+    {
+        UiLanguage.En => "Fix stuck Shift typos (THis → This)",
+        _ => "Виправлення залиплого Shift (ПРивіт → Привіт)"
+    };
+
     public static string CheckAutostart(UiLanguage lang) => lang switch
     {
         UiLanguage.En => "Launch MovaFlow on Windows startup",

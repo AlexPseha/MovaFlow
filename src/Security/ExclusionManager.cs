@@ -14,6 +14,10 @@ public class AppSettingsModel
     public bool SwitchSystemLayout { get; set; } = true;
     public bool EnableOnTheFly { get; set; } = true;
     public bool EnableRevertOnBackspace { get; set; } = true;
+    public bool EnableSmartQuotes { get; set; } = true;
+    public bool EnableSmartDashes { get; set; } = true;
+    public bool EnableSmartTypography { get; set; } = true;
+    public bool EnableStuckShiftFix { get; set; } = true;
     public bool EnablePasswordProtection { get; set; } = true;
     public bool AutostartWithWindows { get; set; } = false;
     public string DonationUrl { get; set; } = "https://send.monobank.ua/";

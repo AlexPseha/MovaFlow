@@ -173,11 +173,17 @@ public static class UnitTests
             // Test saving and reloading excluded words via Settings.ExcludedWords (SettingsForm flow)
             exclusion.Settings.ExcludedWords = new List<string> { "ННГ", "API", "НОВЕСЛОВО" };
             exclusion.Settings.EnableRevertOnBackspace = false;
+            exclusion.Settings.EnableSmartQuotes = true;
+            exclusion.Settings.EnableSmartDashes = true;
+            exclusion.Settings.EnableSmartTypography = true;
+            exclusion.Settings.EnableStuckShiftFix = true;
             exclusion.Save();
 
             var reloadedExclusion = new ExclusionManager(tempSettings);
             Assert(reloadedExclusion.IsWordExcluded("НОВЕСЛОВО"), "ExclusionManager: newly saved word persists across instances");
             Assert(!reloadedExclusion.Settings.EnableRevertOnBackspace, "ExclusionManager: EnableRevertOnBackspace flag persists across instances");
+            Assert(reloadedExclusion.Settings.EnableSmartQuotes, "ExclusionManager: EnableSmartQuotes persists");
+            Assert(reloadedExclusion.Settings.EnableSmartDashes, "ExclusionManager: EnableSmartDashes persists");
             Assert(reloadedExclusion.Settings.ExcludedWords.Contains("НОВЕСЛОВО"), "ExclusionManager: Settings.ExcludedWords contains newly added word");
         }
         finally
@@ -185,7 +191,45 @@ public static class UnitTests
             if (File.Exists(tempSettings)) File.Delete(tempSettings);
         }
 
-        // 6. Localization Tests
+        // 6. Smart Typography Tests
+        // Quotes
+        Assert(SmartTypography.GetSmartQuote('\0', "uk") == '«', "SmartTypography: opening quote at start for UK");
+        Assert(SmartTypography.GetSmartQuote(' ', "uk") == '«', "SmartTypography: opening quote after space for UK");
+        Assert(SmartTypography.GetSmartQuote('(', "uk") == '«', "SmartTypography: opening quote after bracket for UK");
+        Assert(SmartTypography.GetSmartQuote('а', "uk") == '»', "SmartTypography: closing quote after letter for UK");
+        Assert(SmartTypography.GetSmartQuote('«', "uk") == '»', "SmartTypography: closing quote right after opening quote makes «»");
+        Assert(SmartTypography.GetSmartQuote('\0', "en") == '“', "SmartTypography: opening quote for EN");
+        Assert(SmartTypography.GetSmartQuote('a', "en") == '”', "SmartTypography: closing quote for EN");
+
+        // Dashes
+        var dash1 = SmartTypography.CheckSmartDash("привіт -");
+        Assert(dash1.HasValue && dash1.Value.backspaces == 1 && dash1.Value.replacement == "— ", "SmartTypography: ' -' replaced with '— '");
+        var dash2 = SmartTypography.CheckSmartDash("привіт --");
+        Assert(dash2.HasValue && dash2.Value.backspaces == 2 && dash2.Value.replacement == "— ", "SmartTypography: ' --' replaced with '— '");
+        Assert(SmartTypography.CheckSmartDash("--flag") == null, "SmartTypography: '--flag' not converted to dash");
+        Assert(SmartTypography.CheckSmartDash("-item") == null, "SmartTypography: '-item' not converted to dash");
+
+        // Ellipsis
+        var ell = SmartTypography.CheckEllipsis("зачекай..");
+        Assert(ell.HasValue && ell.Value.backspaces == 2 && ell.Value.replacement == "…", "SmartTypography: '..' + '.' replaced with '…'");
+        Assert(SmartTypography.CheckEllipsis("зачекай...") == null, "SmartTypography: '...' + '.' does not double replace");
+
+        // Symbols
+        var symC = SmartTypography.CheckSymbols("MovaFlow (c");
+        Assert(symC.HasValue && symC.Value.backspaces == 2 && symC.Value.replacement == "©", "SmartTypography: (c) -> ©");
+        var symR = SmartTypography.CheckSymbols("Brand (r");
+        Assert(symR.HasValue && symR.Value.backspaces == 2 && symR.Value.replacement == "®", "SmartTypography: (r) -> ®");
+        var symTM = SmartTypography.CheckSymbols("Nexus (tm");
+        Assert(symTM.HasValue && symTM.Value.backspaces == 3 && symTM.Value.replacement == "™", "SmartTypography: (tm) -> ™");
+
+        // Stuck Shift
+        Assert(analyzer.IsKnownWord("привіт"), "WordAnalyzer: knows word 'привіт'");
+        Assert(SmartTypography.TryFixStuckShift("ПРивіт", w => analyzer.IsKnownWord(w)) == "Привіт", "SmartTypography: 'ПРивіт' -> 'Привіт'");
+        Assert(SmartTypography.TryFixStuckShift("ТОму", w => analyzer.IsKnownWord(w)) == "Тому", "SmartTypography: 'ТОму' -> 'Тому'");
+        Assert(SmartTypography.TryFixStuckShift("ПРИВІТ", w => analyzer.IsKnownWord(w)) == null, "SmartTypography: All-caps 'ПРИВІТ' stays unchanged");
+        Assert(SmartTypography.TryFixStuckShift("Привіт", w => analyzer.IsKnownWord(w)) == null, "SmartTypography: normal 'Привіт' stays unchanged");
+
+        // 7. Localization Tests
         Assert(Strings.AppTitle(UiLanguage.Uk).Contains("Розумний"), "Localization: UK title");
         Assert(Strings.AppTitle(UiLanguage.En).Contains("Smart"), "Localization: EN title");
 
