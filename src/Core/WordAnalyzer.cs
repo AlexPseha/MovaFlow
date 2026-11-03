@@ -85,10 +85,16 @@ public class WordAnalyzer
                 ? LayoutMatrix.RuToEn(rawWord)
                 : LayoutMatrix.UkToEn(rawWord);
 
-            // Short words (<= 3 letters) are governed strictly by the ShortWords white-list
-            // completely bypassing the 25,000-word dictionary to prevent false transitions like "зу" -> "pe".
+            // Short words (<= 3 letters)
             if (rawWord.Length <= ShortWords.MaxLength)
             {
+                // CRITICAL: Never convert 1-3 letter Cyrillic prefixes to English on-the-fly!
+                // Otherwise typing "гірше" gets hijacked at the 2nd letter ("гі" -> "us" -> "ushit").
+                if (isOnTheFly)
+                {
+                    return new TransformationResult(false, rawWord, rawWord, string.Empty);
+                }
+
                 bool isImpossibleCyrillic = NgramDetector.IsLikelyEnglishMistypedAsCyrillic(rawWord);
                 bool shouldConvert = ShortWords.ShouldConvertShort(rawWord, "uk", candidateEn, "en", context)
                                   || (isImpossibleCyrillic && _enDictionary.Contains(candidateEn));
@@ -99,12 +105,14 @@ public class WordAnalyzer
                 return new TransformationResult(false, rawWord, rawWord, string.Empty);
             }
 
+            bool hasSlavicPrefix = (options.EnableUkrainian && _ukDictionary.HasPrefix(rawWord))
+                                || (options.EnableRussian && _ruDictionary.HasPrefix(rawWord));
+
             if (isOnTheFly)
             {
-                bool isImpossibleCyrillic = NgramDetector.IsLikelyEnglishMistypedAsCyrillic(rawWord);
-
-                if (isImpossibleCyrillic ||
-                    (!_ukDictionary.HasPrefix(rawWord) && !_ruDictionary.HasPrefix(rawWord) && _enDictionary.HasPrefix(candidateEn)))
+                // Only convert Cyrillic -> English on-the-fly if NO Ukrainian/Russian word starts with rawWord!
+                if (!hasSlavicPrefix &&
+                    (_enDictionary.HasPrefix(candidateEn) || NgramDetector.IsLikelyEnglishMistypedAsCyrillic(rawWord)))
                 {
                     return new TransformationResult(true, rawWord, candidateEn, "en");
                 }
@@ -129,6 +137,19 @@ public class WordAnalyzer
         return new TransformationResult(false, rawWord, rawWord, string.Empty);
     }
 
+    private static bool ContainsEnglishVowel(string s)
+    {
+        foreach (char c in s)
+        {
+            char lower = char.ToLowerInvariant(c);
+            if (lower is 'a' or 'e' or 'i' or 'o' or 'u')
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private TransformationResult? ChooseCyrillicCandidate(
         string rawWord,
         bool isOnTheFly,
@@ -144,6 +165,14 @@ public class WordAnalyzer
         // Short words (<= 3 letters) check via curated ShortWords
         if (rawWord.Length <= ShortWords.MaxLength)
         {
+            // When on-the-fly (before Space/delimiter), only allow vowel-less consonant combinations
+            // like "wt" (це), "yt" (не), "lt" (де), "zr" (як), "ghb" (при).
+            // Never hijack prefixes that contain English vowels like "wi" (window/with) or "sh" (shift)!
+            if (isOnTheFly && ContainsEnglishVowel(rawWord))
+            {
+                return null;
+            }
+
             if (ukEnabled && ShortWords.ShouldConvertShort(rawWord, "en", candidateUk, "uk", context))
             {
                 return new TransformationResult(true, rawWord, candidateUk, "uk");
@@ -254,6 +283,7 @@ public class WordAnalyzer
         {
             "це", "не", "де", "як", "ми", "ви", "ти", "он", "то", "чи", "бо", "за", "на", "до", "по", "із", "ще", "їх", "ця", "ці", "от", "ну", "та", "їй", "ся", "би", "же",
             "баг", "баги", "багів", "багом", "буде", "бути", "був", "була", "були", "було", "будуть", "без", "багато", "більше", "бачив", "бачити", "юзер", "юзери",
+            "гірше", "гірший", "гірша", "гірші", "гірко", "гіркий", "гілка", "гість", "годі", "гарно", "говорити",
             "справи", "справа", "справі", "справу", "справою", "справах", "справді", "спроба", "спробувати", "спасибі", "стало", "стати",
             "привіт", "дякую", "будь", "ласка", "доброго", "дня", "ранку", "вечора",
             "робота", "мова", "програма", "клавіатура", "текст", "перемикач", "користувач",

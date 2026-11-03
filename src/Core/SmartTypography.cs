@@ -122,17 +122,14 @@ public static class SmartTypography
                 return (1, q.ToString(), q);
             }
 
-            if (enableSmartDashes)
+            if (recentHistory.EndsWith(" --", StringComparison.Ordinal))
             {
-                if (recentHistory.EndsWith(" --", StringComparison.Ordinal))
-                {
-                    return (2, "\u2014" + q, q);
-                }
+                return (2, "\u2014" + q, q);
+            }
 
-                if (recentHistory.EndsWith(" -", StringComparison.Ordinal))
-                {
-                    return (1, "\u2014" + q, q);
-                }
+            if (recentHistory.EndsWith(" -", StringComparison.Ordinal))
+            {
+                return (1, "\u2014" + q, q);
             }
         }
 

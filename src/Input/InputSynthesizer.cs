@@ -12,6 +12,8 @@ public static class InputSynthesizer
     private const uint KEYEVENTF_UNICODE = 0x0004;
     private const ushort VK_BACK = 0x08;
     private const ushort VK_SHIFT = 0x10;
+    private const ushort VK_LSHIFT = 0xA0;
+    private const ushort VK_RSHIFT = 0xA1;
 
     [StructLayout(LayoutKind.Sequential)]
     private struct KEYBDINPUT
@@ -36,31 +38,41 @@ public static class InputSynthesizer
     [DllImport("user32.dll")]
     private static extern short GetAsyncKeyState(int vKey);
 
+    /// <summary>
+    /// Releases generic VK_SHIFT (0x10) if it was left stuck in kernel state while neither physical LShift nor RShift is pressed.
+    /// </summary>
+    public static void ReleaseStuckShiftIfNeeded()
+    {
+        bool genericShift = (GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0;
+        bool lShift = (GetAsyncKeyState(VK_LSHIFT) & 0x8000) != 0;
+        bool rShift = (GetAsyncKeyState(VK_RSHIFT) & 0x8000) != 0;
+
+        if (genericShift && !lShift && !rShift)
+        {
+            var inputs = new INPUT[]
+            {
+                new INPUT
+                {
+                    type = INPUT_KEYBOARD,
+                    ki = new KEYBDINPUT
+                    {
+                        wVk = VK_SHIFT,
+                        wScan = 0,
+                        dwFlags = KEYEVENTF_KEYUP,
+                        dwExtraInfo = InjectedSignature
+                    }
+                }
+            };
+            SendInput((uint)inputs.Length, inputs, Marshal.SizeOf(typeof(INPUT)));
+            DebugLogger.Log("[InputSynthesizer] Released stuck virtual VK_SHIFT (0x10)");
+        }
+    }
+
     public static void ReplaceText(int backspaceCount, string newText)
     {
         if (backspaceCount <= 0 && string.IsNullOrEmpty(newText)) return;
 
-        bool shiftDown = (GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0;
-
-        var inputs = new List<INPUT>();
-
-        // 0. If Shift is physically pressed (e.g. user typed Shift+2 or Shift+'),
-        // temporarily release Shift before sending Backspace and Unicode characters.
-        // This prevents target apps (Telegram, Chrome, Word, RichEdit) from rejecting VK_PACKET.
-        if (shiftDown)
-        {
-            inputs.Add(new INPUT
-            {
-                type = INPUT_KEYBOARD,
-                ki = new KEYBDINPUT
-                {
-                    wVk = VK_SHIFT,
-                    wScan = 0,
-                    dwFlags = KEYEVENTF_KEYUP,
-                    dwExtraInfo = InjectedSignature
-                }
-            });
-        }
+        var inputs = new List<INPUT>((backspaceCount + newText.Length) * 2);
 
         // 1. Simulate Backspace presses
         for (int i = 0; i < backspaceCount; i++)
@@ -89,7 +101,7 @@ public static class InputSynthesizer
             });
         }
 
-        // 2. Simulate Unicode typing
+        // 2. Simulate Unicode typing (never touches VK_SHIFT so Shift can never get stuck)
         foreach (char c in newText)
         {
             inputs.Add(new INPUT
@@ -116,32 +128,16 @@ public static class InputSynthesizer
             });
         }
 
-        // 3. Restore Shift state if it was physically down
-        if (shiftDown)
-        {
-            inputs.Add(new INPUT
-            {
-                type = INPUT_KEYBOARD,
-                ki = new KEYBDINPUT
-                {
-                    wVk = VK_SHIFT,
-                    wScan = 0,
-                    dwFlags = 0,
-                    dwExtraInfo = InjectedSignature
-                }
-            });
-        }
-
         var array = inputs.ToArray();
         uint sent = SendInput((uint)array.Length, array, Marshal.SizeOf(typeof(INPUT)));
         if (sent != array.Length)
         {
             int err = Marshal.GetLastWin32Error();
-            DebugLogger.Log($"[InputSynthesizer] SendInput warning: sent {sent}/{array.Length}, err={err}, shiftWasDown={shiftDown}");
+            DebugLogger.Log($"[InputSynthesizer] SendInput warning: sent {sent}/{array.Length}, err={err}");
         }
         else
         {
-            DebugLogger.Log($"[InputSynthesizer] SendInput success: backspaces={backspaceCount}, text='{newText}', shiftWasDown={shiftDown}");
+            DebugLogger.Log($"[InputSynthesizer] SendInput success: backspaces={backspaceCount}, text='{newText}'");
         }
     }
 }

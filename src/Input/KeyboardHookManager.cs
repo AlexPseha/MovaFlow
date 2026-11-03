@@ -127,6 +127,7 @@ public class KeyboardHookManager : IDisposable
         }
 
         _hookId = SetWindowsHookEx(WH_KEYBOARD_LL, _proc, hModule, 0);
+        InputSynthesizer.ReleaseStuckShiftIfNeeded();
     }
 
     public void Stop()
@@ -273,7 +274,9 @@ public class KeyboardHookManager : IDisposable
         _justCorrected = false;
 
         // 6. Translate Key to Unicode Char
-        bool shiftPressed = (GetAsyncKeyState(0x10) & 0x8000) != 0;
+        InputSynthesizer.ReleaseStuckShiftIfNeeded();
+        bool shiftPressed = (GetAsyncKeyState(0xA0) & 0x8000) != 0
+                         || (GetAsyncKeyState(0xA1) & 0x8000) != 0;
         string activeLang = SystemLayoutSwitcher.GetActiveWindowLanguage();
         char typedChar = GetCharFromKey((uint)vk, (uint)scanCode);
 
@@ -665,17 +668,15 @@ public class KeyboardHookManager : IDisposable
     private static char GetCharFromKey(uint vk, uint scanCode)
     {
         byte[] keyState = new byte[256];
-        if (!GetKeyboardState(keyState))
-        {
-            Array.Clear(keyState, 0, keyState.Length);
-        }
 
-        // Track Shift/Ctrl/Alt states accurately including left/right specific keys
-        if ((GetAsyncKeyState(0x10) & 0x8000) != 0)
+        // Use physical LShift / RShift states via GetAsyncKeyState so background thread state is never stale
+        bool lShift = (GetAsyncKeyState(0xA0) & 0x8000) != 0;
+        bool rShift = (GetAsyncKeyState(0xA1) & 0x8000) != 0;
+        if (lShift || rShift)
         {
             keyState[0x10] = 0x80; // VK_SHIFT
-            if ((GetAsyncKeyState(0xA0) & 0x8000) != 0) keyState[0xA0] = 0x80; // VK_LSHIFT
-            if ((GetAsyncKeyState(0xA1) & 0x8000) != 0) keyState[0xA1] = 0x80; // VK_RSHIFT
+            if (lShift) keyState[0xA0] = 0x80; // VK_LSHIFT
+            if (rShift) keyState[0xA1] = 0x80; // VK_RSHIFT
         }
         if ((GetAsyncKeyState(0x11) & 0x8000) != 0)
         {

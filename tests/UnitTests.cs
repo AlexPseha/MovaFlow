@@ -129,12 +129,24 @@ public static class UnitTests
         var resOrdersTr = analyzer.Analyze("OrdersWithTr", ConversionMode.Both, isOnTheFly: true);
         Assert(!resOrdersTr.ShouldTransform, "WordAnalyzer: On-the-fly 'OrdersWithTr' must not convert to Cyrillic");
 
-        // Short Cyrillic Syllable Protection ("зу" must not become "pe")
+        // Short Cyrillic Syllable Protection ("зу" must not become "pe", "гі" in "гірше" must not become "us" on-the-fly)
         var resZuDelim = analyzer.Analyze("зу", ConversionMode.Both, isOnTheFly: false);
         Assert(!resZuDelim.ShouldTransform, "WordAnalyzer: 'зу' must not convert to 'pe' on delimiter");
 
         var resZuFly = analyzer.Analyze("зу", ConversionMode.Both, isOnTheFly: true);
         Assert(!resZuFly.ShouldTransform, "WordAnalyzer: 'зу' must not convert to 'pe' on-the-fly");
+
+        var resGiFly = analyzer.Analyze("гі", ConversionMode.Both, isOnTheFly: true);
+        Assert(!resGiFly.ShouldTransform, "WordAnalyzer: 'гі' (prefix of 'гірше') must NEVER convert to 'us' on-the-fly");
+
+        var resGirshe = analyzer.Analyze("гірше", ConversionMode.Both, isOnTheFly: false);
+        Assert(!resGirshe.ShouldTransform, "WordAnalyzer: 'гірше' must NEVER convert to 'ushit'");
+
+        var resWiFly = analyzer.Analyze("wi", ConversionMode.Both, isOnTheFly: true);
+        Assert(!resWiFly.ShouldTransform, "WordAnalyzer: 'wi' (prefix of 'window'/'with') must NEVER convert to 'ці' on-the-fly");
+
+        var resShifFly = analyzer.Analyze("shif", ConversionMode.Both, isOnTheFly: true);
+        Assert(!resShifFly.ShouldTransform, "WordAnalyzer: 'shif' (prefix of 'shift') must NEVER convert on-the-fly");
 
         // 5. ExclusionManager Tests
         string tempSettings = Path.GetTempFileName();
