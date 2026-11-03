@@ -44,13 +44,27 @@ public static class SystemLayoutSwitcher
     [DllImport("user32.dll")]
     private static extern IntPtr ActivateKeyboardLayout(IntPtr hkl, uint Flags);
 
-    public static string GetActiveWindowLanguage()
+    public static IntPtr GetActiveWindowHkl()
     {
         IntPtr hwnd = GetForegroundWindow();
-        if (hwnd == IntPtr.Zero) return "en";
+        if (hwnd == IntPtr.Zero) return IntPtr.Zero;
 
         uint threadId = GetWindowThreadProcessId(hwnd, out _);
-        IntPtr hkl = GetKeyboardLayout(threadId);
+        var gui = new GUITHREADINFO { cbSize = Marshal.SizeOf<GUITHREADINFO>() };
+        if (GetGUIThreadInfo(threadId, ref gui) && gui.hwndFocus != IntPtr.Zero)
+        {
+            uint focusThread = GetWindowThreadProcessId(gui.hwndFocus, out _);
+            IntPtr hklFocus = GetKeyboardLayout(focusThread);
+            if (hklFocus != IntPtr.Zero) return hklFocus;
+        }
+
+        return GetKeyboardLayout(threadId);
+    }
+
+    public static string GetActiveWindowLanguage()
+    {
+        IntPtr hkl = GetActiveWindowHkl();
+        if (hkl == IntPtr.Zero) return "uk";
 
         int langId = (int)((long)hkl & 0xFFFF);
         return langId switch

@@ -4,7 +4,7 @@ namespace MovaFlow.Core;
 
 /// <summary>
 /// Handles smart typography replacements on-the-fly:
-/// - Smart quotes: «» for Ukrainian/Russian, “” for English
+/// - Smart quotes: «» for Ukrainian/Russian, “” for English (supports both " with Shift and ' without Shift)
 /// - Smart dashes: " - " or " -- " -> " — "
 /// - Ellipsis: "..." -> "…"
 /// - Symbols: (c) -> ©, (r) -> ®, (tm) -> ™
@@ -28,12 +28,48 @@ public static class SmartTypography
 
     /// <summary>
     /// Returns the appropriate smart quote character based on the preceding character and active language.
+    /// Backward-compatible overload for double quotes.
     /// </summary>
     public static char GetSmartQuote(char previousChar, string? language)
+    {
+        return TryGetSmartQuote(previousChar, language, isSingleQuote: false, null) ?? (
+            (string.IsNullOrEmpty(language) || language.StartsWith("uk", StringComparison.OrdinalIgnoreCase) || language.StartsWith("ru", StringComparison.OrdinalIgnoreCase))
+                ? UkOpeningQuote : EnOpeningQuote);
+    }
+
+    /// <summary>
+    /// Returns the appropriate smart quote character based on the preceding character, active language, and quote type.
+    /// If isSingleQuote is true and the quote is inside a word without an open quote (e.g. Ukrainian apostrophe in м'ясо or English in don't),
+    /// returns null so that the apostrophe is preserved intact.
+    /// </summary>
+    public static char? TryGetSmartQuote(char previousChar, string? language, bool isSingleQuote = false, string? recentHistory = null)
     {
         bool isCyrillic = string.IsNullOrEmpty(language)
                        || language.StartsWith("uk", StringComparison.OrdinalIgnoreCase)
                        || language.StartsWith("ru", StringComparison.OrdinalIgnoreCase);
+
+        char openQuote = isCyrillic ? UkOpeningQuote : EnOpeningQuote;
+        char closeQuote = isCyrillic ? UkClosingQuote : EnClosingQuote;
+
+        // Special handling for single quote / apostrophe (key ' without Shift)
+        if (isSingleQuote)
+        {
+            // Check whether an opening quote is currently unclosed in recentHistory
+            bool hasOpenQuote = !string.IsNullOrEmpty(recentHistory) 
+                             && recentHistory.LastIndexOf(openQuote) > recentHistory.LastIndexOf(closeQuote);
+
+            if (hasOpenQuote)
+            {
+                // We have an open quote, so this ' at the end of word is the closing quote!
+                return closeQuote;
+            }
+
+            // If preceded by a letter or digit and NO open quote exists, this is an apostrophe (м'ясо, п'ять, don't)!
+            if (char.IsLetterOrDigit(previousChar))
+            {
+                return null; // Preserve apostrophe!
+            }
+        }
 
         // Opening if at start of buffer, after whitespace, or after opening punctuation
         bool isOpen = previousChar == '\0' 
@@ -46,14 +82,7 @@ public static class SmartTypography
             isOpen = false;
         }
 
-        if (isCyrillic)
-        {
-            return isOpen ? UkOpeningQuote : UkClosingQuote;
-        }
-        else
-        {
-            return isOpen ? EnOpeningQuote : EnClosingQuote;
-        }
+        return isOpen ? openQuote : closeQuote;
     }
 
     /// <summary>

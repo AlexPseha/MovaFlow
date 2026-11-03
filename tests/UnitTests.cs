@@ -210,6 +210,18 @@ public static class UnitTests
         Assert(SmartTypography.GetSmartQuote('a', "en") == '\u201D', "SmartTypography: closing quote for EN is \u201D");
         Assert(SmartTypography.GetSmartQuote('\u201C', "en") == '\u201D', "SmartTypography: closing quote after open makes \u201C\u201D");
 
+        // TryGetSmartQuote & Apostrophe Preservation Tests
+        Assert(SmartTypography.TryGetSmartQuote(' ', "uk", isSingleQuote: true, null) == '\u00AB', "SmartTypography: single quote after space becomes opening \u00AB");
+        Assert(SmartTypography.TryGetSmartQuote('м', "uk", isSingleQuote: true, "м") == null, "SmartTypography: single quote in 'м'ясо' preserves apostrophe (null)");
+        Assert(SmartTypography.TryGetSmartQuote('п', "uk", isSingleQuote: true, "п") == null, "SmartTypography: single quote in 'п'ять' preserves apostrophe (null)");
+        Assert(SmartTypography.TryGetSmartQuote('n', "en", isSingleQuote: true, "don") == null, "SmartTypography: single quote in 'don't' preserves apostrophe (null)");
+        Assert(SmartTypography.TryGetSmartQuote('а', "uk", isSingleQuote: true, "\u00ABСлава") == '\u00BB', "SmartTypography: single quote closing unclosed \u00AB becomes \u00BB");
+        Assert(SmartTypography.TryGetSmartQuote('d', "en", isSingleQuote: true, "\u201CWord") == '\u201D', "SmartTypography: single quote closing unclosed \u201C becomes \u201D");
+
+        // DebugLogger test
+        DebugLogger.Log("Test log entry from UnitTests");
+        Assert(File.Exists(DebugLogger.LogPath), "DebugLogger: log file created successfully");
+
         // Dashes
         var dash1 = SmartTypography.CheckSmartDash("привіт -");
         Assert(dash1.HasValue && dash1.Value.backspaces == 1 && dash1.Value.replacement == "\u2014 ", "SmartTypography: ' -' replaced with em-dash and space");

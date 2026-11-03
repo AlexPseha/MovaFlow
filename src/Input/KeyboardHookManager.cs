@@ -66,6 +66,9 @@ public class KeyboardHookManager : IDisposable
     [DllImport("user32.dll")]
     private static extern IntPtr GetKeyboardLayout(uint idThread);
 
+    [DllImport("user32.dll")]
+    private static extern uint MapVirtualKeyEx(uint uCode, uint uMapType, IntPtr dwhkl);
+
     private readonly WordAnalyzer _wordAnalyzer;
     private readonly SecurityGuard _securityGuard;
     private readonly ExclusionManager _exclusionManager;
@@ -259,35 +262,62 @@ public class KeyboardHookManager : IDisposable
         _justCorrected = false;
 
         // 6. Translate Key to Unicode Char
+        bool shiftPressed = (GetAsyncKeyState(0x10) & 0x8000) != 0;
+        string activeLang = SystemLayoutSwitcher.GetActiveWindowLanguage();
         char typedChar = GetCharFromKey((uint)vk, (uint)scanCode);
+
+        // Smart Quotes: replace '"' or ''' with language-aware «» or “”
+        if (_exclusionManager.Settings.EnableSmartQuotes)
+        {
+            // Recognize double quote:
+            // 1. typedChar == '"'
+            // 2. OR vk == 0x32 ('2') with Shift in Cyrillic
+            // 3. OR vk == 0xDE ('\'') with Shift in English
+            bool isDoubleQuote = (typedChar == '"')
+                              || (shiftPressed && vk == 0x32 && activeLang != "en")
+                              || (shiftPressed && vk == 0xDE && activeLang == "en");
+
+            // Recognize single quote (without Shift):
+            // 1. typedChar == '\''
+            // 2. OR vk == 0xDE without Shift in English
+            // 3. OR vk == 0xC0 without Shift in Cyrillic (tilde key which types apostrophe in Ukrainian)
+            bool isSingleQuote = !shiftPressed && (typedChar == '\'' || (vk == 0xDE && activeLang == "en") || (vk == 0xC0 && activeLang != "en"));
+
+            if (isDoubleQuote || isSingleQuote)
+            {
+                char prevChar = _recentHistory.Length > 0 ? _recentHistory[_recentHistory.Length - 1] : '\0';
+                char? smartQuote = SmartTypography.TryGetSmartQuote(prevChar, activeLang, isSingleQuote, _recentHistory.ToString());
+
+                if (smartQuote.HasValue)
+                {
+                    if (_wordBuffer.Length > 0)
+                    {
+                        HandleDelimiter('\0');
+                    }
+
+                    _isReplacing = true;
+                    try
+                    {
+                        InputSynthesizer.ReplaceText(0, smartQuote.Value.ToString());
+                        AppendHistory(smartQuote.Value);
+                        DebugLogger.Log($"[KeyboardHook] Replaced quote: vk=0x{vk:X2}, shift={shiftPressed}, isDouble={isDoubleQuote}, isSingle={isSingleQuote}, lang={activeLang}, prev='{prevChar}', smart='{smartQuote.Value}'");
+                        return true;
+                    }
+                    finally
+                    {
+                        _isReplacing = false;
+                    }
+                }
+                else
+                {
+                    DebugLogger.Log($"[KeyboardHook] Preserved apostrophe: vk=0x{vk:X2}, lang={activeLang}, prev='{prevChar}'");
+                }
+            }
+        }
+
         if (typedChar == '\0')
         {
             return false;
-        }
-
-        // Smart Quotes: replace '"' with language-aware «» or “”
-        if (typedChar == '"' && _exclusionManager.Settings.EnableSmartQuotes)
-        {
-            if (_wordBuffer.Length > 0)
-            {
-                HandleDelimiter('\0');
-            }
-
-            char prevChar = _recentHistory.Length > 0 ? _recentHistory[_recentHistory.Length - 1] : '\0';
-            string activeLang = SystemLayoutSwitcher.GetActiveWindowLanguage();
-            char smartQuote = SmartTypography.GetSmartQuote(prevChar, activeLang);
-
-            _isReplacing = true;
-            try
-            {
-                InputSynthesizer.ReplaceText(0, smartQuote.ToString());
-                AppendHistory(smartQuote);
-                return true;
-            }
-            finally
-            {
-                _isReplacing = false;
-            }
         }
 
         // Smart Typography: Ellipsis "..."
@@ -602,12 +632,18 @@ public class KeyboardHookManager : IDisposable
             keyState[0x14] = 0x01; // VK_CAPITAL toggle state
         }
 
-        IntPtr hwnd = GetForegroundWindow();
-        uint threadId = hwnd != IntPtr.Zero ? GetWindowThreadProcessId(hwnd, out _) : 0;
-        IntPtr hkl = GetKeyboardLayout(threadId);
+        IntPtr hkl = SystemLayoutSwitcher.GetActiveWindowHkl();
+        if (hkl == IntPtr.Zero)
+        {
+            IntPtr hwnd = GetForegroundWindow();
+            uint threadId = hwnd != IntPtr.Zero ? GetWindowThreadProcessId(hwnd, out _) : 0;
+            hkl = GetKeyboardLayout(threadId);
+        }
+
+        uint sc = scanCode != 0 ? scanCode : MapVirtualKeyEx(vk, 0, hkl);
 
         var sb = new StringBuilder(8);
-        int result = ToUnicodeEx(vk, scanCode, keyState, sb, sb.Capacity, 0, hkl);
+        int result = ToUnicodeEx(vk, sc, keyState, sb, sb.Capacity, 0, hkl);
         if (result > 0 && sb.Length > 0)
         {
             return sb[0];

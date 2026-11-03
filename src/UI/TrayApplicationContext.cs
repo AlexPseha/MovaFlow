@@ -33,6 +33,7 @@ public class TrayApplicationContext : ApplicationContext
     private readonly ToolStripMenuItem _itemOnTheFly;
     private readonly ToolStripMenuItem _itemSettings;
     private readonly ToolStripMenuItem _itemStats;
+    private readonly ToolStripMenuItem _itemDebugLog;
     private readonly ToolStripMenuItem _itemDonate;
     private readonly ToolStripMenuItem _itemExit;
 
@@ -92,6 +93,26 @@ public class TrayApplicationContext : ApplicationContext
         // Stats
         _itemStats = new ToolStripMenuItem { Enabled = false };
 
+        _itemDebugLog = new ToolStripMenuItem();
+        _itemDebugLog.Click += (s, e) =>
+        {
+            try
+            {
+                if (File.Exists(DebugLogger.LogPath))
+                {
+                    Process.Start(new ProcessStartInfo(DebugLogger.LogPath) { UseShellExecute = true });
+                }
+                else
+                {
+                    MessageBox.Show("Файл журналу ще не створено.", "MovaFlow", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Помилка відкриття журналу: {ex.Message}", "MovaFlow", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        };
+
         // Donate
         _itemDonate = new ToolStripMenuItem();
         _itemDonate.Click += (s, e) => OpenDonationUrl();
@@ -114,6 +135,7 @@ public class TrayApplicationContext : ApplicationContext
             new ToolStripSeparator(),
             _itemSettings,
             _itemStats,
+            _itemDebugLog,
             _itemDonate,
             new ToolStripSeparator(),
             _itemExit
@@ -179,6 +201,7 @@ public class TrayApplicationContext : ApplicationContext
         _itemOnTheFly.Text = Strings.MenuOnTheFly(lang);
         _itemSettings.Text = Strings.MenuOpenSettings(lang);
         _itemStats.Text = Strings.MenuStats(lang, _hookManager.CorrectionsCount);
+        _itemDebugLog.Text = lang == UiLanguage.Uk ? "Журнал діагностики..." : "Diagnostic log...";
         _itemDonate.Text = Strings.MenuDonate(lang);
         _itemExit.Text = Strings.MenuExit(lang);
     }
