@@ -24,10 +24,14 @@ MovaFlow automatically switches the keyboard layout when a word was typed in the
 
 ### Layout & Typing Intelligence
 * **On-the-fly correction:** by the 3rd or 4th character, MovaFlow detects that a word is being typed in the wrong layout (`ghb…`) and seamlessly switches it while you type.
+* **Line Context (LanguageContext):** remembers the language of the last 3–5 words on the current line, creating language inertia that prevents accidental layout flips during fluent typing.
+* **Short Words Whitelist (ShortWords):** 1–3 letter words are evaluated strictly against a curated whitelist of common short words (inspired by Klavko). This permanently prevents false conversions like `зу` → `pe`, `де` → `lt`, or `ми` → `vb`.
+* **Convert Selected Text (Ctrl+Shift+L):** quickly converts and toggles the layout of any currently selected text fragment in any Windows application.
+* **Automatic Exception Prompt (ExceptionPrompt):** reverting an auto-correction twice consecutively with Backspace prompts a balloon notification offering to add the word to exclusions with one click.
+* **Hardware Caps Lock LED Indicator:** optional feature allowing your keyboard's Caps Lock LED to serve as a hardware indicator for the active Ukrainian layout.
 * **Delimiter-based correction:** words not recognized during typing are evaluated after pressing Space, Tab, Enter, or punctuation: `ghbdsn?` instantly becomes `привіт,`.
 * **Revert layout on Backspace:** pressing `Backspace` immediately after an auto-correction automatically reverts the Windows keyboard layout to the previous language, breaking unwanted correction loops.
 * **CamelCase & PascalCase Protection:** code identifiers like `OrdersWithTrips` are preserved intact and never falsely converted to Cyrillic.
-* **Short Syllable Protection:** 2-letter Cyrillic syllables (such as `зу`) are safeguarded against accidental conversion into short English words (like `pe`).
 * **Embedded frequency dictionaries:** 25,000 top words for Ukrainian (UKR), English (ENG), and Russian (RUS) from the HermitDave corpus. Prefix tree (Trie) search takes less than 1 microsecond.
 * **Full alphabet support:** handles unique letters like `і`, `ї`, `є`, `ґ`, apostrophe, as well as `б` and `ю` without false delimiter triggers.
 * **Reliable Windows 11 system layout switching:** guaranteed synchronization of the active system language across all modern and legacy windows (WinUI 3, UWP, Chromium, Electron, Win32).
@@ -68,6 +72,7 @@ MovaFlow automatically switches the keyboard layout when a word was typed in the
 
 | Action | How to perform |
 |---|---|
+| **Convert selected text** | Select any text fragment and press `Ctrl+Shift+L` |
 | **Revert layout on Backspace** | Press `Backspace` immediately after an auto-correction |
 | **Pause / Resume** | Click the tray icon or choose "Pause / Resume" from the context menu |
 | **Open Settings** | Right-click tray icon → "Settings..." |

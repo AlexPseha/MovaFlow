@@ -185,6 +185,30 @@ public static class Strings
         _ => "Виправлення залиплого Shift (ПРивіт → Привіт)"
     };
 
+    public static string CheckLanguageContext(UiLanguage lang) => lang switch
+    {
+        UiLanguage.En => "Line context (recent words protect against accidental layout jumps)",
+        _ => "Контекст рядка (мова останніх слів захищає від хибних стрибків)"
+    };
+
+    public static string CheckSelectionConversion(UiLanguage lang) => lang switch
+    {
+        UiLanguage.En => "Convert selected text via Ctrl+Shift+L",
+        _ => "Конвертація виділеного тексту через Ctrl+Shift+L"
+    };
+
+    public static string CheckExceptionPrompt(UiLanguage lang) => lang switch
+    {
+        UiLanguage.En => "Suggest adding to exclusions on double Backspace revert",
+        _ => "Пропонувати додати у виключення при подвійному скасуванні Backspace"
+    };
+
+    public static string CheckCapsLockIndicator(UiLanguage lang) => lang switch
+    {
+        UiLanguage.En => "Hardware Caps Lock LED indicates Ukrainian language",
+        _ => "Апаратний індикатор Caps Lock для української мови"
+    };
+
     public static string CheckAutostart(UiLanguage lang) => lang switch
     {
         UiLanguage.En => "Launch MovaFlow on Windows startup",

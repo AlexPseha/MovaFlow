@@ -32,11 +32,15 @@
   - [x] Видалення `MovaFlow.exe` з `build_and_publish.ps1` та очищення застарілого кореневого файлу <!-- id: 7.6 -->
   - [x] Модульні тести на збереження виключень та опції Revert on Backspace <!-- id: 7.7 -->
   - [x] Перезбірка додатків через `build_and_publish.ps1` <!-- id: 7.8 -->
-- [x] Впровадження розумної типографіки (парні лапки, тире, трикрапка, символи, залиплий Shift) <!-- id: 8 -->
-  - [x] Створення модуля `SmartTypography.cs` з підтримкою лапок « », “ ”, тире —, трикрапки … та спецсимволів <!-- id: 8.1 -->
-  - [x] Реалізація виправлення залиплого Shift (`ПРивіт` → `Привіт`) <!-- id: 8.2 -->
-  - [x] Оновлення `AppSettingsModel` та `ExclusionManager` новими прапорцями типографіки <!-- id: 8.3 -->
-  - [x] Інтеграція підстановки типографіки в `KeyboardHookManager.cs` <!-- id: 8.4 -->
-  - [x] Додавання елементів керування у `SettingsForm.cs` та локалізації у `Strings.cs` <!-- id: 8.5 -->
-  - [x] Додавання модульних тестів у `UnitTests.cs` <!-- id: 8.6 -->
-  - [x] Оновлення `graphify`, `CHANGELOG.md` та перезбірка додатків <!-- id: 8.7 -->
+- [x] Виправлення розумних лапок, тире та комплексний апгрейд MovaFlow <!-- id: 9 -->
+  - [x] Виправлення кодування спецсимволів (Unicode escape `\u00AB`, `\u00BB`, `\u2014`) у `SmartTypography.cs` <!-- id: 9.1 -->
+  - [x] Оновлення `GetCharFromKey` у `KeyboardHookManager.cs` для Shift/Caps-станів (`VK_LSHIFT`, `VK_RSHIFT`, `VK_CAPITAL`) <!-- id: 9.2 -->
+  - [x] Створення модуля `ShortWords.cs` з білими списками 1-3 літерних слів <!-- id: 9.3 -->
+  - [x] Створення модуля `LanguageContext.cs` (контекст рядка та мовна інерція) <!-- id: 9.4 -->
+  - [x] Інтеграція `ShortWords` та `LanguageContext` у `WordAnalyzer.cs` <!-- id: 9.5 -->
+  - [x] Створення `SelectedTextConverter.cs` (конвертація виділеного тексту через `Ctrl+Shift+L`) <!-- id: 9.6 -->
+  - [x] Механізм `ExceptionPromptManager` (автоматична пропозиція додати у винятки після подвійного скасування) <!-- id: 9.7 -->
+  - [x] Опціональний `CapsLockIndicator.cs` (індикатор української мови) <!-- id: 9.8 -->
+  - [x] Оновлення `AppSettingsModel`, `SettingsForm.cs` та `Strings.cs` <!-- id: 9.9 -->
+  - [x] Модульні тести у `UnitTests.cs` та тестовий скрипт `tests/live_typing_test.ps1` <!-- id: 9.10 -->
+  - [x] Оновлення `CHANGELOG.md`, `graphify update .` та перезбірка дистрибутивів <!-- id: 9.11 -->

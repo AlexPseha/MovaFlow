@@ -43,7 +43,8 @@ public class WordAnalyzer
         string rawWord,
         ConversionMode mode,
         bool isOnTheFly,
-        WordAnalyzerOptions? options = null)
+        WordAnalyzerOptions? options = null,
+        LanguageContext? context = null)
     {
         options ??= new WordAnalyzerOptions();
 
@@ -69,7 +70,7 @@ public class WordAnalyzer
         {
             if (options.EnableUkrainian || options.EnableRussian)
             {
-                var cyrillicCandidate = ChooseCyrillicCandidate(rawWord, isOnTheFly, options);
+                var cyrillicCandidate = ChooseCyrillicCandidate(rawWord, isOnTheFly, options, context);
                 if (cyrillicCandidate != null)
                 {
                     return cyrillicCandidate;
@@ -84,15 +85,26 @@ public class WordAnalyzer
                 ? LayoutMatrix.RuToEn(rawWord)
                 : LayoutMatrix.UkToEn(rawWord);
 
+            // Short words (<= 3 letters) are governed strictly by the ShortWords white-list
+            // completely bypassing the 25,000-word dictionary to prevent false transitions like "зу" -> "pe".
+            if (rawWord.Length <= ShortWords.MaxLength)
+            {
+                bool isImpossibleCyrillic = NgramDetector.IsLikelyEnglishMistypedAsCyrillic(rawWord);
+                bool shouldConvert = ShortWords.ShouldConvertShort(rawWord, "uk", candidateEn, "en", context)
+                                  || (isImpossibleCyrillic && _enDictionary.Contains(candidateEn));
+                if (shouldConvert)
+                {
+                    return new TransformationResult(true, rawWord, candidateEn, "en");
+                }
+                return new TransformationResult(false, rawWord, rawWord, string.Empty);
+            }
+
             if (isOnTheFly)
             {
-                // For 2-letter words like "зу", "не", "де", "як", only convert if it matches an impossible Cyrillic prefix (e.g. "иг" -> "ug").
-                // Never convert 2-letter Cyrillic syllables just because English has a 2-letter word (like "pe", "re", "to")!
-                bool isShortWord = rawWord.Length <= 2;
                 bool isImpossibleCyrillic = NgramDetector.IsLikelyEnglishMistypedAsCyrillic(rawWord);
 
                 if (isImpossibleCyrillic ||
-                    (!isShortWord && !_ukDictionary.HasPrefix(rawWord) && !_ruDictionary.HasPrefix(rawWord) && _enDictionary.HasPrefix(candidateEn)))
+                    (!_ukDictionary.HasPrefix(rawWord) && !_ruDictionary.HasPrefix(rawWord) && _enDictionary.HasPrefix(candidateEn)))
                 {
                     return new TransformationResult(true, rawWord, candidateEn, "en");
                 }
@@ -104,12 +116,6 @@ public class WordAnalyzer
 
                 if (!isSlavicWord && isEnWord)
                 {
-                    // Protection against converting 2-letter Ukrainian syllables into English words (e.g. "зу" -> "pe")
-                    if (rawWord.Length <= 2 && !NgramDetector.IsLikelyEnglishMistypedAsCyrillic(rawWord))
-                    {
-                        return new TransformationResult(false, rawWord, rawWord, string.Empty);
-                    }
-
                     return new TransformationResult(true, rawWord, candidateEn, "en");
                 }
 
@@ -123,13 +129,34 @@ public class WordAnalyzer
         return new TransformationResult(false, rawWord, rawWord, string.Empty);
     }
 
-    private TransformationResult? ChooseCyrillicCandidate(string rawWord, bool isOnTheFly, WordAnalyzerOptions options)
+    private TransformationResult? ChooseCyrillicCandidate(
+        string rawWord,
+        bool isOnTheFly,
+        WordAnalyzerOptions options,
+        LanguageContext? context = null)
     {
         string candidateUk = LayoutMatrix.EnToUk(rawWord);
         string candidateRu = LayoutMatrix.EnToRu(rawWord);
 
         bool ukEnabled = options.EnableUkrainian;
         bool ruEnabled = options.EnableRussian;
+
+        // Short words (<= 3 letters) check via curated ShortWords
+        if (rawWord.Length <= ShortWords.MaxLength)
+        {
+            if (ukEnabled && ShortWords.ShouldConvertShort(rawWord, "en", candidateUk, "uk", context))
+            {
+                return new TransformationResult(true, rawWord, candidateUk, "uk");
+            }
+            if (ruEnabled && ShortWords.ShouldConvertShort(rawWord, "en", candidateRu, "ru", context))
+            {
+                return new TransformationResult(true, rawWord, candidateRu, "ru");
+            }
+            if (isOnTheFly || !NgramDetector.IsLikelyCyrillicMistypedAsEnglish(rawWord))
+            {
+                return null;
+            }
+        }
 
         if (isOnTheFly)
         {

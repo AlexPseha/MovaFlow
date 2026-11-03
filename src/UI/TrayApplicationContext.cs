@@ -16,6 +16,7 @@ public class TrayApplicationContext : ApplicationContext
     private readonly KeyboardHookManager _hookManager;
     private readonly ExclusionManager _exclusionManager;
     private readonly LocalizationManager _loc = LocalizationManager.Instance;
+    private string? _pendingExclusionWord;
 
     // Menu Items
     private readonly ToolStripMenuItem _itemHeader;
@@ -125,6 +126,9 @@ public class TrayApplicationContext : ApplicationContext
             Visible = true
         };
         _notifyIcon.DoubleClick += (s, e) => OpenSettingsForm();
+        _notifyIcon.BalloonTipClicked += OnBalloonTipClicked;
+
+        _hookManager.SuggestException += OnSuggestException;
 
         _hookManager.CorrectionApplied += (count) =>
         {
@@ -314,6 +318,37 @@ public class TrayApplicationContext : ApplicationContext
         catch
         {
             return SystemIcons.Application;
+        }
+    }
+
+    private void OnSuggestException(string word)
+    {
+        if (_notifyIcon == null) return;
+
+        string title = _loc.CurrentLanguage == UiLanguage.Uk ? "MovaFlow: Виключення" : "MovaFlow: Exclusion";
+        string msg = _loc.CurrentLanguage == UiLanguage.Uk
+            ? $"Слово «{word}» було двічі скасовано. Натисніть, щоб додати до виключень."
+            : $"Word \"{word}\" was reverted twice. Click to add to exclusions.";
+
+        _pendingExclusionWord = word;
+        try
+        {
+            _notifyIcon.ShowBalloonTip(6000, title, msg, ToolTipIcon.Info);
+        }
+        catch { }
+    }
+
+    private void OnBalloonTipClicked(object? sender, EventArgs e)
+    {
+        if (!string.IsNullOrEmpty(_pendingExclusionWord))
+        {
+            string word = _pendingExclusionWord;
+            _pendingExclusionWord = null;
+            if (!_exclusionManager.Settings.ExcludedWords.Contains(word, StringComparer.OrdinalIgnoreCase))
+            {
+                _exclusionManager.Settings.ExcludedWords.Add(word);
+                _exclusionManager.Save();
+            }
         }
     }
 
