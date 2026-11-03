@@ -1,3 +1,5 @@
+using System;
+
 namespace MovaFlow.Core;
 
 /// <summary>
@@ -7,9 +9,23 @@ namespace MovaFlow.Core;
 /// - Ellipsis: "..." -> "…"
 /// - Symbols: (c) -> ©, (r) -> ®, (tm) -> ™
 /// - Stuck Shift: "ПРивіт" -> "Привіт"
+/// Uses explicit Unicode escape sequences to ensure immunity to OS codepages.
 /// </summary>
 public static class SmartTypography
 {
+    // Quotes
+    public const char UkOpeningQuote = '\u00AB'; // «
+    public const char UkClosingQuote = '\u00BB'; // »
+    public const char EnOpeningQuote = '\u201C'; // “
+    public const char EnClosingQuote = '\u201D'; // ”
+
+    // Dash & Ellipsis & Symbols
+    public const string EmDashWithSpace = "\u2014 "; // — + space
+    public const string Ellipsis = "\u2026"; // …
+    public const string SymbolCopyright = "\u00A9"; // ©
+    public const string SymbolRegistered = "\u00AE"; // ®
+    public const string SymbolTrademark = "\u2122"; // ™
+
     /// <summary>
     /// Returns the appropriate smart quote character based on the preceding character and active language.
     /// </summary>
@@ -20,21 +36,23 @@ public static class SmartTypography
                        || language.StartsWith("ru", StringComparison.OrdinalIgnoreCase);
 
         // Opening if at start of buffer, after whitespace, or after opening punctuation
-        bool isOpen = previousChar == '\0' || char.IsWhiteSpace(previousChar) || "([{<„«“".Contains(previousChar);
+        bool isOpen = previousChar == '\0' 
+                   || char.IsWhiteSpace(previousChar) 
+                   || "([{<\u201E\u00AB\u201C\"'`".IndexOf(previousChar) >= 0;
 
         // If user immediately types another quote right after an opening quote, produce the closing quote to form pair («» / “”)
-        if (previousChar is '«' or '“')
+        if (previousChar == UkOpeningQuote || previousChar == EnOpeningQuote)
         {
             isOpen = false;
         }
 
         if (isCyrillic)
         {
-            return isOpen ? '«' : '»';
+            return isOpen ? UkOpeningQuote : UkClosingQuote;
         }
         else
         {
-            return isOpen ? '“' : '”';
+            return isOpen ? EnOpeningQuote : EnClosingQuote;
         }
     }
 
@@ -47,14 +65,14 @@ public static class SmartTypography
     {
         if (string.IsNullOrEmpty(history)) return null;
 
-        if (history.EndsWith(" --"))
+        if (history.EndsWith(" --", StringComparison.Ordinal))
         {
-            return (2, "— ");
+            return (2, EmDashWithSpace);
         }
 
-        if (history.EndsWith(" -"))
+        if (history.EndsWith(" -", StringComparison.Ordinal))
         {
-            return (1, "— ");
+            return (1, EmDashWithSpace);
         }
 
         return null;
@@ -68,9 +86,9 @@ public static class SmartTypography
     {
         if (string.IsNullOrEmpty(history)) return null;
 
-        if (history.EndsWith("..") && !history.EndsWith("..."))
+        if (history.EndsWith("..", StringComparison.Ordinal) && !history.EndsWith("...", StringComparison.Ordinal))
         {
-            return (2, "…");
+            return (2, Ellipsis);
         }
 
         return null;
@@ -85,17 +103,17 @@ public static class SmartTypography
 
         if (history.EndsWith("(c", StringComparison.OrdinalIgnoreCase))
         {
-            return (2, "©");
+            return (2, SymbolCopyright);
         }
 
         if (history.EndsWith("(r", StringComparison.OrdinalIgnoreCase))
         {
-            return (2, "®");
+            return (2, SymbolRegistered);
         }
 
         if (history.EndsWith("(tm", StringComparison.OrdinalIgnoreCase))
         {
-            return (3, "™");
+            return (3, SymbolTrademark);
         }
 
         return null;

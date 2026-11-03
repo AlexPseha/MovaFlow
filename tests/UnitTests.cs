@@ -177,6 +177,10 @@ public static class UnitTests
             exclusion.Settings.EnableSmartDashes = true;
             exclusion.Settings.EnableSmartTypography = true;
             exclusion.Settings.EnableStuckShiftFix = true;
+            exclusion.Settings.EnableLanguageContext = true;
+            exclusion.Settings.EnableSelectionConversion = true;
+            exclusion.Settings.EnableExceptionPrompt = true;
+            exclusion.Settings.EnableCapsLockIndicator = false;
             exclusion.Save();
 
             var reloadedExclusion = new ExclusionManager(tempSettings);
@@ -184,6 +188,10 @@ public static class UnitTests
             Assert(!reloadedExclusion.Settings.EnableRevertOnBackspace, "ExclusionManager: EnableRevertOnBackspace flag persists across instances");
             Assert(reloadedExclusion.Settings.EnableSmartQuotes, "ExclusionManager: EnableSmartQuotes persists");
             Assert(reloadedExclusion.Settings.EnableSmartDashes, "ExclusionManager: EnableSmartDashes persists");
+            Assert(reloadedExclusion.Settings.EnableLanguageContext, "ExclusionManager: EnableLanguageContext persists");
+            Assert(reloadedExclusion.Settings.EnableSelectionConversion, "ExclusionManager: EnableSelectionConversion persists");
+            Assert(reloadedExclusion.Settings.EnableExceptionPrompt, "ExclusionManager: EnableExceptionPrompt persists");
+            Assert(!reloadedExclusion.Settings.EnableCapsLockIndicator, "ExclusionManager: EnableCapsLockIndicator persists");
             Assert(reloadedExclusion.Settings.ExcludedWords.Contains("НОВЕСЛОВО"), "ExclusionManager: Settings.ExcludedWords contains newly added word");
         }
         finally
@@ -192,35 +200,36 @@ public static class UnitTests
         }
 
         // 6. Smart Typography Tests
-        // Quotes
-        Assert(SmartTypography.GetSmartQuote('\0', "uk") == '«', "SmartTypography: opening quote at start for UK");
-        Assert(SmartTypography.GetSmartQuote(' ', "uk") == '«', "SmartTypography: opening quote after space for UK");
-        Assert(SmartTypography.GetSmartQuote('(', "uk") == '«', "SmartTypography: opening quote after bracket for UK");
-        Assert(SmartTypography.GetSmartQuote('а', "uk") == '»', "SmartTypography: closing quote after letter for UK");
-        Assert(SmartTypography.GetSmartQuote('«', "uk") == '»', "SmartTypography: closing quote right after opening quote makes «»");
-        Assert(SmartTypography.GetSmartQuote('\0', "en") == '“', "SmartTypography: opening quote for EN");
-        Assert(SmartTypography.GetSmartQuote('a', "en") == '”', "SmartTypography: closing quote for EN");
+        // Quotes (using explicit Unicode escapes for cross-platform encoding safety)
+        Assert(SmartTypography.GetSmartQuote('\0', "uk") == '\u00AB', "SmartTypography: opening quote at start for UK is \u00AB");
+        Assert(SmartTypography.GetSmartQuote(' ', "uk") == '\u00AB', "SmartTypography: opening quote after space for UK is \u00AB");
+        Assert(SmartTypography.GetSmartQuote('(', "uk") == '\u00AB', "SmartTypography: opening quote after bracket for UK is \u00AB");
+        Assert(SmartTypography.GetSmartQuote('а', "uk") == '\u00BB', "SmartTypography: closing quote after letter for UK is \u00BB");
+        Assert(SmartTypography.GetSmartQuote('\u00AB', "uk") == '\u00BB', "SmartTypography: closing quote right after opening quote makes \u00AB\u00BB");
+        Assert(SmartTypography.GetSmartQuote('\0', "en") == '\u201C', "SmartTypography: opening quote for EN is \u201C");
+        Assert(SmartTypography.GetSmartQuote('a', "en") == '\u201D', "SmartTypography: closing quote for EN is \u201D");
+        Assert(SmartTypography.GetSmartQuote('\u201C', "en") == '\u201D', "SmartTypography: closing quote after open makes \u201C\u201D");
 
         // Dashes
         var dash1 = SmartTypography.CheckSmartDash("привіт -");
-        Assert(dash1.HasValue && dash1.Value.backspaces == 1 && dash1.Value.replacement == "— ", "SmartTypography: ' -' replaced with '— '");
+        Assert(dash1.HasValue && dash1.Value.backspaces == 1 && dash1.Value.replacement == "\u2014 ", "SmartTypography: ' -' replaced with em-dash and space");
         var dash2 = SmartTypography.CheckSmartDash("привіт --");
-        Assert(dash2.HasValue && dash2.Value.backspaces == 2 && dash2.Value.replacement == "— ", "SmartTypography: ' --' replaced with '— '");
+        Assert(dash2.HasValue && dash2.Value.backspaces == 2 && dash2.Value.replacement == "\u2014 ", "SmartTypography: ' --' replaced with em-dash and space");
         Assert(SmartTypography.CheckSmartDash("--flag") == null, "SmartTypography: '--flag' not converted to dash");
         Assert(SmartTypography.CheckSmartDash("-item") == null, "SmartTypography: '-item' not converted to dash");
 
         // Ellipsis
         var ell = SmartTypography.CheckEllipsis("зачекай..");
-        Assert(ell.HasValue && ell.Value.backspaces == 2 && ell.Value.replacement == "…", "SmartTypography: '..' + '.' replaced with '…'");
+        Assert(ell.HasValue && ell.Value.backspaces == 2 && ell.Value.replacement == "\u2026", "SmartTypography: '..' + '.' replaced with ellipsis \u2026");
         Assert(SmartTypography.CheckEllipsis("зачекай...") == null, "SmartTypography: '...' + '.' does not double replace");
 
         // Symbols
         var symC = SmartTypography.CheckSymbols("MovaFlow (c");
-        Assert(symC.HasValue && symC.Value.backspaces == 2 && symC.Value.replacement == "©", "SmartTypography: (c) -> ©");
+        Assert(symC.HasValue && symC.Value.backspaces == 2 && symC.Value.replacement == "\u00A9", "SmartTypography: (c) -> \u00A9");
         var symR = SmartTypography.CheckSymbols("Brand (r");
-        Assert(symR.HasValue && symR.Value.backspaces == 2 && symR.Value.replacement == "®", "SmartTypography: (r) -> ®");
+        Assert(symR.HasValue && symR.Value.backspaces == 2 && symR.Value.replacement == "\u00AE", "SmartTypography: (r) -> \u00AE");
         var symTM = SmartTypography.CheckSymbols("Nexus (tm");
-        Assert(symTM.HasValue && symTM.Value.backspaces == 3 && symTM.Value.replacement == "™", "SmartTypography: (tm) -> ™");
+        Assert(symTM.HasValue && symTM.Value.backspaces == 3 && symTM.Value.replacement == "\u2122", "SmartTypography: (tm) -> \u2122");
 
         // Stuck Shift
         Assert(analyzer.IsKnownWord("привіт"), "WordAnalyzer: knows word 'привіт'");
@@ -229,9 +238,67 @@ public static class UnitTests
         Assert(SmartTypography.TryFixStuckShift("ПРИВІТ", w => analyzer.IsKnownWord(w)) == null, "SmartTypography: All-caps 'ПРИВІТ' stays unchanged");
         Assert(SmartTypography.TryFixStuckShift("Привіт", w => analyzer.IsKnownWord(w)) == null, "SmartTypography: normal 'Привіт' stays unchanged");
 
-        // 7. Localization Tests
+        // 7. ShortWords Tests
+        Assert(ShortWords.IsCommon("не", "uk"), "ShortWords: 'не' is common UK short word");
+        Assert(ShortWords.IsCommon("це", "uk"), "ShortWords: 'це' is common UK short word");
+        Assert(ShortWords.IsCommon("де", "uk"), "ShortWords: 'де' is common UK short word");
+        Assert(ShortWords.IsCommon("як", "uk"), "ShortWords: 'як' is common UK short word");
+        Assert(ShortWords.IsCommon("ми", "uk"), "ShortWords: 'ми' is common UK short word");
+        Assert(ShortWords.IsCommon("the", "en"), "ShortWords: 'the' is common EN short word");
+        Assert(ShortWords.IsCommon("you", "en"), "ShortWords: 'you' is common EN short word");
+        Assert(!ShortWords.IsCommon("pe", "en"), "ShortWords: 'pe' is NOT a common EN short word");
+        Assert(!ShortWords.IsCommon("wt", "en"), "ShortWords: 'wt' is NOT a common EN short word");
+        Assert(!ShortWords.IsCommon("yt", "en"), "ShortWords: 'yt' is NOT a common EN short word");
+
+        // ShortWords Layout Switching Protection
+        var options = new WordAnalyzerOptions();
+        var resZu = analyzer.Analyze("зу", ConversionMode.Both, isOnTheFly: false, options);
+        Assert(!resZu.ShouldTransform, "ShortWords: 'зу' NEVER converts to 'pe' on delimiter");
+        var resZuOtf = analyzer.Analyze("зу", ConversionMode.Both, isOnTheFly: true, options);
+        Assert(!resZuOtf.ShouldTransform, "ShortWords: 'зу' NEVER converts to 'pe' on-the-fly");
+
+        var resNe = analyzer.Analyze("не", ConversionMode.Both, isOnTheFly: false, options);
+        Assert(!resNe.ShouldTransform, "ShortWords: 'не' NEVER converts to 'yt'");
+        var resDe = analyzer.Analyze("де", ConversionMode.Both, isOnTheFly: false, options);
+        Assert(!resDe.ShouldTransform, "ShortWords: 'де' NEVER converts to 'lt'");
+        var resYak = analyzer.Analyze("як", ConversionMode.Both, isOnTheFly: false, options);
+        Assert(!resYak.ShouldTransform, "ShortWords: 'як' NEVER converts to 'zr'");
+
+        var resYt = analyzer.Analyze("yt", ConversionMode.Both, isOnTheFly: false, options);
+        Assert(resYt.ShouldTransform && resYt.TransformedText == "не", "ShortWords: 'yt' converts to 'не'");
+        var resWt = analyzer.Analyze("wt", ConversionMode.Both, isOnTheFly: false, options);
+        Assert(resWt.ShouldTransform && resWt.TransformedText == "це", "ShortWords: 'wt' converts to 'це'");
+        var resGhb = analyzer.Analyze("ghb", ConversionMode.Both, isOnTheFly: false, options);
+        Assert(resGhb.ShouldTransform && resGhb.TransformedText == "при", "ShortWords: 'ghb' converts to 'при'");
+        var resThe = analyzer.Analyze("еру", ConversionMode.Both, isOnTheFly: false, options);
+        Assert(resThe.ShouldTransform && resThe.TransformedText == "the", "ShortWords: Cyrillic 'еру' converts to 'the'");
+
+        // 8. LanguageContext Tests
+        var ctx = new LanguageContext(5);
+        Assert(ctx.WordCount == 0, "LanguageContext: initially empty");
+        ctx.AddWord("uk");
+        ctx.AddWord("uk");
+        Assert(ctx.Favors("uk", "en"), "LanguageContext: 2 UK words favor UK over EN");
+        Assert(!ctx.Favors("en", "uk"), "LanguageContext: does not favor EN");
+        ctx.Reset();
+        Assert(ctx.WordCount == 0, "LanguageContext: empty after Reset");
+        Assert(!ctx.Favors("uk", "en"), "LanguageContext: does not favor UK after Reset");
+
+        // 9. ExceptionPromptManager Tests
+        var epm = new ExceptionPromptManager();
+        string? promptedWord = null;
+        epm.SuggestException += w => promptedWord = w;
+
+        epm.RecordRevert("тест");
+        Assert(promptedWord == null, "ExceptionPrompt: not prompted on first revert");
+        epm.RecordRevert("тест");
+        Assert(promptedWord == "тест", "ExceptionPrompt: prompted on second consecutive revert of 'тест'");
+
+        // 10. Localization Tests
         Assert(Strings.AppTitle(UiLanguage.Uk).Contains("Розумний"), "Localization: UK title");
         Assert(Strings.AppTitle(UiLanguage.En).Contains("Smart"), "Localization: EN title");
+        Assert(!string.IsNullOrEmpty(Strings.CheckLanguageContext(UiLanguage.Uk)), "Localization: CheckLanguageContext UK exists");
+        Assert(!string.IsNullOrEmpty(Strings.CheckSelectionConversion(UiLanguage.Uk)), "Localization: CheckSelectionConversion UK exists");
 
         Console.WriteLine($"\n=== Test Results: Passed: {passed}, Failed: {failed} ===");
         return failed == 0 ? 0 : 1;

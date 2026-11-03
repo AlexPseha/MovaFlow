@@ -55,6 +55,9 @@ public class KeyboardHookManager : IDisposable
     private static extern short GetAsyncKeyState(int vKey);
 
     [DllImport("user32.dll")]
+    private static extern short GetKeyState(int vKey);
+
+    [DllImport("user32.dll")]
     private static extern IntPtr GetForegroundWindow();
 
     [DllImport("user32.dll")]
@@ -71,13 +74,17 @@ public class KeyboardHookManager : IDisposable
     private IntPtr _hookId = IntPtr.Zero;
     private readonly StringBuilder _wordBuffer = new();
     private readonly StringBuilder _recentHistory = new();
+    private readonly LanguageContext _languageContext = new(5);
+    private readonly ExceptionPromptManager _exceptionPromptManager = new();
     private volatile bool _isReplacing;
     private bool _justCorrected;
     private string? _previousLanguageBeforeCorrection;
+    private string? _lastCorrectedWord;
 
     public bool IsPaused { get; set; }
     public int CorrectionsCount { get; private set; }
     public event Action<int>? CorrectionApplied;
+    public event Action<string>? SuggestException;
 
     public KeyboardHookManager(
         WordAnalyzer wordAnalyzer,
@@ -88,6 +95,7 @@ public class KeyboardHookManager : IDisposable
         _securityGuard = securityGuard;
         _exclusionManager = exclusionManager;
         _proc = HookCallback;
+        _exceptionPromptManager.SuggestException += word => SuggestException?.Invoke(word);
     }
 
     public void Start()
@@ -156,7 +164,25 @@ public class KeyboardHookManager : IDisposable
 
     private bool ProcessKey(int vk, int scanCode)
     {
-        // 1. Security Check
+        // 1. Hotkey: Ctrl+Shift+L converts currently selected text in active window
+        if (vk == 0x4C && _exclusionManager.Settings.EnableSelectionConversion) // 'L'
+        {
+            bool isCtrl = (GetAsyncKeyState(0x11) & 0x8000) != 0;
+            bool isShift = (GetAsyncKeyState(0x10) & 0x8000) != 0;
+            if (isCtrl && isShift)
+            {
+                SelectedTextConverter.TryConvertSelectedText(lang =>
+                {
+                    if (_exclusionManager.Settings.EnableCapsLockIndicator)
+                    {
+                        CapsLockIndicator.Sync(lang, true);
+                    }
+                });
+                return true; // suppress 'L'
+            }
+        }
+
+        // 2. Security Check
         if (!_securityGuard.IsInputSecureAndAllowed())
         {
             ResetBuffer();
@@ -164,16 +190,17 @@ public class KeyboardHookManager : IDisposable
             return false;
         }
 
-        // 2. Navigation / Reset Keys
+        // 3. Navigation / Reset Keys
         if (IsResetKey(vk))
         {
             ResetBuffer();
             _recentHistory.Clear();
+            _languageContext.Reset();
             _justCorrected = false;
             return false;
         }
 
-        // 3. Enter key (0x0D): ALWAYS finalize and reset buffer so next line starts clean!
+        // 4. Enter key (0x0D): ALWAYS finalize and reset buffer so next line starts clean!
         if (vk == 0x0D)
         {
             if (_wordBuffer.Length > 0)
@@ -182,24 +209,35 @@ public class KeyboardHookManager : IDisposable
             }
             ResetBuffer();
             _recentHistory.Clear();
+            _languageContext.Reset();
             _justCorrected = false;
             return false; // let Windows execute Enter cleanly
         }
 
-        // 4. Backspace
+        // 5. Backspace
         if (vk == 0x08)
         {
             // Revert layout on immediate Backspace after an auto-correction
             if (_justCorrected)
             {
+                if (!string.IsNullOrEmpty(_lastCorrectedWord) && _exclusionManager.Settings.EnableExceptionPrompt)
+                {
+                    _exceptionPromptManager.RecordRevert(_lastCorrectedWord);
+                }
+
                 if (_exclusionManager.Settings.EnableRevertOnBackspace &&
                     _exclusionManager.Settings.SwitchSystemLayout &&
                     !string.IsNullOrEmpty(_previousLanguageBeforeCorrection))
                 {
                     SystemLayoutSwitcher.SwitchLanguage(IntPtr.Zero, _previousLanguageBeforeCorrection);
+                    if (_exclusionManager.Settings.EnableCapsLockIndicator)
+                    {
+                        CapsLockIndicator.Sync(_previousLanguageBeforeCorrection, true);
+                    }
                 }
                 _justCorrected = false;
                 _previousLanguageBeforeCorrection = null;
+                _lastCorrectedWord = null;
             }
 
             if (_wordBuffer.Length > 0)
@@ -213,9 +251,14 @@ public class KeyboardHookManager : IDisposable
             return false;
         }
 
+        if (!string.IsNullOrEmpty(_lastCorrectedWord) && !_justCorrected)
+        {
+            _exceptionPromptManager.RecordAccepted(_lastCorrectedWord);
+            _lastCorrectedWord = null;
+        }
         _justCorrected = false;
 
-        // 5. Translate Key to Unicode Char
+        // 6. Translate Key to Unicode Char
         char typedChar = GetCharFromKey((uint)vk, (uint)scanCode);
         if (typedChar == '\0')
         {
@@ -347,7 +390,13 @@ public class KeyboardHookManager : IDisposable
         string currentWord = _wordBuffer.ToString();
         var mode = ParseMode(_exclusionManager.Settings.ConversionMode);
 
-        var result = _wordAnalyzer.Analyze(currentWord, mode, isOnTheFly: true, GetAnalyzerOptions());
+        var result = _wordAnalyzer.Analyze(
+            currentWord,
+            mode,
+            isOnTheFly: true,
+            GetAnalyzerOptions(),
+            _exclusionManager.Settings.EnableLanguageContext ? _languageContext : null);
+
         if (result.ShouldTransform)
         {
             _isReplacing = true;
@@ -357,6 +406,10 @@ public class KeyboardHookManager : IDisposable
                 if (_exclusionManager.Settings.SwitchSystemLayout)
                 {
                     SystemLayoutSwitcher.SwitchLanguage(IntPtr.Zero, result.TargetLanguage);
+                    if (_exclusionManager.Settings.EnableCapsLockIndicator)
+                    {
+                        CapsLockIndicator.Sync(result.TargetLanguage, true);
+                    }
                 }
 
                 // In HookCallback, this triggering key is suppressed (return (IntPtr)1).
@@ -368,7 +421,9 @@ public class KeyboardHookManager : IDisposable
                 _wordBuffer.Clear();
 
                 _previousLanguageBeforeCorrection = previousLang;
+                _lastCorrectedWord = currentWord;
                 _justCorrected = true;
+                _languageContext.AddWord(result.TargetLanguage);
 
                 CorrectionsCount++;
                 CorrectionApplied?.Invoke(CorrectionsCount);
@@ -390,7 +445,13 @@ public class KeyboardHookManager : IDisposable
             string currentWord = _wordBuffer.ToString();
             var mode = ParseMode(_exclusionManager.Settings.ConversionMode);
 
-            var result = _wordAnalyzer.Analyze(currentWord, mode, isOnTheFly: false, GetAnalyzerOptions());
+            var result = _wordAnalyzer.Analyze(
+                currentWord,
+                mode,
+                isOnTheFly: false,
+                GetAnalyzerOptions(),
+                _exclusionManager.Settings.EnableLanguageContext ? _languageContext : null);
+
             if (result.ShouldTransform)
             {
                 _isReplacing = true;
@@ -400,6 +461,10 @@ public class KeyboardHookManager : IDisposable
                     if (_exclusionManager.Settings.SwitchSystemLayout)
                     {
                         SystemLayoutSwitcher.SwitchLanguage(IntPtr.Zero, result.TargetLanguage);
+                        if (_exclusionManager.Settings.EnableCapsLockIndicator)
+                        {
+                            CapsLockIndicator.Sync(result.TargetLanguage, true);
+                        }
                     }
 
                     // Replace typed word. If delimiter is '\0' (e.g. on Enter), do not append delimiter char.
@@ -407,7 +472,9 @@ public class KeyboardHookManager : IDisposable
                     InputSynthesizer.ReplaceText(currentWord.Length, textToInsert);
 
                     _previousLanguageBeforeCorrection = previousLang;
+                    _lastCorrectedWord = currentWord;
                     _justCorrected = true;
+                    _languageContext.AddWord(result.TargetLanguage);
 
                     CorrectionsCount++;
                     CorrectionApplied?.Invoke(CorrectionsCount);
@@ -438,6 +505,16 @@ public class KeyboardHookManager : IDisposable
                         _isReplacing = false;
                     }
                 }
+                else
+                {
+                    string lang = LayoutMatrix.DetectScript(currentWord) == ScriptType.Cyrillic ? "uk" : "en";
+                    _languageContext.AddWord(lang);
+                }
+            }
+            else
+            {
+                string lang = LayoutMatrix.DetectScript(currentWord) == ScriptType.Cyrillic ? "uk" : "en";
+                _languageContext.AddWord(lang);
             }
         }
         ResetBuffer();
@@ -501,10 +578,29 @@ public class KeyboardHookManager : IDisposable
             Array.Clear(keyState, 0, keyState.Length);
         }
 
-        // Track Shift/Ctrl states
-        if ((GetAsyncKeyState(0x10) & 0x8000) != 0) keyState[0x10] = 0x80; // Shift
-        if ((GetAsyncKeyState(0x11) & 0x8000) != 0) keyState[0x11] = 0x80; // Ctrl
-        if ((GetAsyncKeyState(0x12) & 0x8000) != 0) keyState[0x12] = 0x80; // Alt
+        // Track Shift/Ctrl/Alt states accurately including left/right specific keys
+        if ((GetAsyncKeyState(0x10) & 0x8000) != 0)
+        {
+            keyState[0x10] = 0x80; // VK_SHIFT
+            if ((GetAsyncKeyState(0xA0) & 0x8000) != 0) keyState[0xA0] = 0x80; // VK_LSHIFT
+            if ((GetAsyncKeyState(0xA1) & 0x8000) != 0) keyState[0xA1] = 0x80; // VK_RSHIFT
+        }
+        if ((GetAsyncKeyState(0x11) & 0x8000) != 0)
+        {
+            keyState[0x11] = 0x80; // VK_CONTROL
+            if ((GetAsyncKeyState(0xA2) & 0x8000) != 0) keyState[0xA2] = 0x80; // VK_LCONTROL
+            if ((GetAsyncKeyState(0xA3) & 0x8000) != 0) keyState[0xA3] = 0x80; // VK_RCONTROL
+        }
+        if ((GetAsyncKeyState(0x12) & 0x8000) != 0)
+        {
+            keyState[0x12] = 0x80; // VK_MENU
+            if ((GetAsyncKeyState(0xA4) & 0x8000) != 0) keyState[0xA4] = 0x80; // VK_LMENU
+            if ((GetAsyncKeyState(0xA5) & 0x8000) != 0) keyState[0xA5] = 0x80; // VK_RMENU
+        }
+        if ((GetKeyState(0x14) & 0x0001) != 0)
+        {
+            keyState[0x14] = 0x01; // VK_CAPITAL toggle state
+        }
 
         IntPtr hwnd = GetForegroundWindow();
         uint threadId = hwnd != IntPtr.Zero ? GetWindowThreadProcessId(hwnd, out _) : 0;

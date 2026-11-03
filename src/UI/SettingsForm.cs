@@ -39,6 +39,10 @@ public class SettingsForm : Form
     private CheckBox _chkSmartDashes = null!;
     private CheckBox _chkSmartTypography = null!;
     private CheckBox _chkStuckShiftFix = null!;
+    private CheckBox _chkLanguageContext = null!;
+    private CheckBox _chkSelectionConversion = null!;
+    private CheckBox _chkExceptionPrompt = null!;
+    private CheckBox _chkCapsLockIndicator = null!;
     private CheckBox _chkAutostart = null!;
 
     // Exclusions Tab
@@ -78,7 +82,7 @@ public class SettingsForm : Form
     private void InitializeComponents()
     {
         Text = Strings.SettingsTitle(_loc.CurrentLanguage);
-        ClientSize = new Size(740, 560);
+        ClientSize = new Size(760, 660);
         StartPosition = FormStartPosition.CenterScreen;
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = false;
@@ -100,8 +104,7 @@ public class SettingsForm : Form
 
         _tabControl = new TabControl
         {
-            Dock = DockStyle.Top,
-            Height = 490,
+            Dock = DockStyle.Fill,
             Padding = new Point(12, 6)
         };
 
@@ -150,8 +153,8 @@ public class SettingsForm : Form
 
         bottomPanel.Controls.AddRange(new Control[] { _btnSave, _btnCancel });
 
-        Controls.Add(_tabControl);
         Controls.Add(bottomPanel);
+        Controls.Add(_tabControl);
         AcceptButton = _btnSave;
         CancelButton = _btnCancel;
     }
@@ -240,10 +243,34 @@ public class SettingsForm : Form
             Location = new Point(20, 393),
             AutoSize = true
         };
+        _chkLanguageContext = new CheckBox
+        {
+            Text = Strings.CheckLanguageContext(_loc.CurrentLanguage),
+            Location = new Point(20, 416),
+            AutoSize = true
+        };
+        _chkSelectionConversion = new CheckBox
+        {
+            Text = Strings.CheckSelectionConversion(_loc.CurrentLanguage),
+            Location = new Point(20, 439),
+            AutoSize = true
+        };
+        _chkExceptionPrompt = new CheckBox
+        {
+            Text = Strings.CheckExceptionPrompt(_loc.CurrentLanguage),
+            Location = new Point(20, 462),
+            AutoSize = true
+        };
+        _chkCapsLockIndicator = new CheckBox
+        {
+            Text = Strings.CheckCapsLockIndicator(_loc.CurrentLanguage),
+            Location = new Point(20, 485),
+            AutoSize = true
+        };
         _chkAutostart = new CheckBox
         {
             Text = Strings.CheckAutostart(_loc.CurrentLanguage),
-            Location = new Point(20, 416),
+            Location = new Point(20, 508),
             AutoSize = true
         };
 
@@ -252,6 +279,7 @@ public class SettingsForm : Form
             _grpLang, _grpLayouts, _grpMode,
             _chkSwitchLayout, _chkOnTheFly, _chkRevertOnBackspace,
             _chkSmartQuotes, _chkSmartDashes, _chkSmartTypography, _chkStuckShiftFix,
+            _chkLanguageContext, _chkSelectionConversion, _chkExceptionPrompt, _chkCapsLockIndicator,
             _chkAutostart
         });
     }
@@ -375,6 +403,10 @@ public class SettingsForm : Form
         _chkSmartDashes.Checked = s.EnableSmartDashes;
         _chkSmartTypography.Checked = s.EnableSmartTypography;
         _chkStuckShiftFix.Checked = s.EnableStuckShiftFix;
+        _chkLanguageContext.Checked = s.EnableLanguageContext;
+        _chkSelectionConversion.Checked = s.EnableSelectionConversion;
+        _chkExceptionPrompt.Checked = s.EnableExceptionPrompt;
+        _chkCapsLockIndicator.Checked = s.EnableCapsLockIndicator;
         _chkAutostart.Checked = AutostartHelper.IsAutostartEnabled();
         _chkPasswordProtection.Checked = s.EnablePasswordProtection;
 
@@ -410,6 +442,10 @@ public class SettingsForm : Form
         s.EnableSmartDashes = _chkSmartDashes.Checked;
         s.EnableSmartTypography = _chkSmartTypography.Checked;
         s.EnableStuckShiftFix = _chkStuckShiftFix.Checked;
+        s.EnableLanguageContext = _chkLanguageContext.Checked;
+        s.EnableSelectionConversion = _chkSelectionConversion.Checked;
+        s.EnableExceptionPrompt = _chkExceptionPrompt.Checked;
+        s.EnableCapsLockIndicator = _chkCapsLockIndicator.Checked;
         s.EnablePasswordProtection = _chkPasswordProtection.Checked;
         s.DonationUrl = DefaultDonationUrl;
 
@@ -455,6 +491,10 @@ public class SettingsForm : Form
         _chkSmartDashes.Text = Strings.CheckSmartDashes(lang);
         _chkSmartTypography.Text = Strings.CheckSmartTypography(lang);
         _chkStuckShiftFix.Text = Strings.CheckStuckShiftFix(lang);
+        _chkLanguageContext.Text = Strings.CheckLanguageContext(lang);
+        _chkSelectionConversion.Text = Strings.CheckSelectionConversion(lang);
+        _chkExceptionPrompt.Text = Strings.CheckExceptionPrompt(lang);
+        _chkCapsLockIndicator.Text = Strings.CheckCapsLockIndicator(lang);
         _chkAutostart.Text = Strings.CheckAutostart(lang);
         _chkPasswordProtection.Text = Strings.CheckPasswordProtection(lang);
 
