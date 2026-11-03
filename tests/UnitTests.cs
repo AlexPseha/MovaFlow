@@ -218,6 +218,16 @@ public static class UnitTests
         Assert(SmartTypography.TryGetSmartQuote('а', "uk", isSingleQuote: true, "\u00ABСлава") == '\u00BB', "SmartTypography: single quote closing unclosed \u00AB becomes \u00BB");
         Assert(SmartTypography.TryGetSmartQuote('d', "en", isSingleQuote: true, "\u201CWord") == '\u201D', "SmartTypography: single quote closing unclosed \u201C becomes \u201D");
 
+        // Closing quote after dash or space when opening quote is active («привіт —»)
+        Assert(SmartTypography.TryGetSmartQuote(' ', "uk", isSingleQuote: false, "\u00ABпривіт \u2014 ") == '\u00BB', "SmartTypography: double quote after em-dash+space closes open \u00AB with \u00BB");
+        Assert(SmartTypography.TryGetSmartQuote('-', "uk", isSingleQuote: false, "\u00ABпривіт -") == '\u00BB', "SmartTypography: double quote after hyphen closes open \u00AB with \u00BB");
+        var actDashSpace = SmartTypography.GetSmartQuoteAction(' ', "uk", isSingleQuote: false, "\u00ABпривіт \u2014 ", enableSmartDashes: true);
+        Assert(actDashSpace.HasValue && actDashSpace.Value.backspaces == 1 && actDashSpace.Value.replacement == "\u00BB", "SmartTypography: GetSmartQuoteAction on '\u00ABпривіт \u2014 ' trims trailing space and inserts \u00BB");
+        var actHyphen = SmartTypography.GetSmartQuoteAction('-', "uk", isSingleQuote: false, "\u00ABпривіт -", enableSmartDashes: true);
+        Assert(actHyphen.HasValue && actHyphen.Value.backspaces == 1 && actHyphen.Value.replacement == "\u2014\u00BB", "SmartTypography: GetSmartQuoteAction on '\u00ABпривіт -' replaces '-' with '\u2014\u00BB'");
+        var actDoubleHyphen = SmartTypography.GetSmartQuoteAction('-', "uk", isSingleQuote: false, "\u00ABпривіт --", enableSmartDashes: true);
+        Assert(actDoubleHyphen.HasValue && actDoubleHyphen.Value.backspaces == 2 && actDoubleHyphen.Value.replacement == "\u2014\u00BB", "SmartTypography: GetSmartQuoteAction on '\u00ABпривіт --' replaces '--' with '\u2014\u00BB'");
+
         // DebugLogger test
         DebugLogger.Log("Test log entry from UnitTests");
         Assert(File.Exists(DebugLogger.LogPath), "DebugLogger: log file created successfully");
@@ -227,6 +237,10 @@ public static class UnitTests
         Assert(dash1.HasValue && dash1.Value.backspaces == 1 && dash1.Value.replacement == "\u2014 ", "SmartTypography: ' -' replaced with em-dash and space");
         var dash2 = SmartTypography.CheckSmartDash("привіт --");
         Assert(dash2.HasValue && dash2.Value.backspaces == 2 && dash2.Value.replacement == "\u2014 ", "SmartTypography: ' --' replaced with em-dash and space");
+        var dashLineStart = SmartTypography.CheckSmartDash("-");
+        Assert(dashLineStart.HasValue && dashLineStart.Value.backspaces == 1 && dashLineStart.Value.replacement == "\u2014 ", "SmartTypography: line-initial '-' + Space replaced with em-dash and space");
+        var dashLineStart2 = SmartTypography.CheckSmartDash("--");
+        Assert(dashLineStart2.HasValue && dashLineStart2.Value.backspaces == 2 && dashLineStart2.Value.replacement == "\u2014 ", "SmartTypography: line-initial '--' + Space replaced with em-dash and space");
         Assert(SmartTypography.CheckSmartDash("--flag") == null, "SmartTypography: '--flag' not converted to dash");
         Assert(SmartTypography.CheckSmartDash("-item") == null, "SmartTypography: '-item' not converted to dash");
 

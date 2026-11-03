@@ -75,6 +75,7 @@ public class KeyboardHookManager : IDisposable
 
     private readonly LowLevelKeyboardProc _proc;
     private IntPtr _hookId = IntPtr.Zero;
+    private IntPtr _lastForegroundHwnd = IntPtr.Zero;
     private readonly StringBuilder _wordBuffer = new();
     private readonly StringBuilder _recentHistory = new();
     private readonly LanguageContext _languageContext = new(5);
@@ -167,6 +168,16 @@ public class KeyboardHookManager : IDisposable
 
     private bool ProcessKey(int vk, int scanCode)
     {
+        // 0. Reset buffers if user switched to a different window
+        IntPtr currentHwnd = GetForegroundWindow();
+        if (currentHwnd != IntPtr.Zero && currentHwnd != _lastForegroundHwnd)
+        {
+            _lastForegroundHwnd = currentHwnd;
+            ResetBuffer();
+            _recentHistory.Clear();
+            _justCorrected = false;
+        }
+
         // 1. Hotkey: Ctrl+Shift+L converts currently selected text in active window
         if (vk == 0x4C && _exclusionManager.Settings.EnableSelectionConversion) // 'L'
         {
@@ -286,21 +297,42 @@ public class KeyboardHookManager : IDisposable
             if (isDoubleQuote || isSingleQuote)
             {
                 char prevChar = _recentHistory.Length > 0 ? _recentHistory[_recentHistory.Length - 1] : '\0';
-                char? smartQuote = SmartTypography.TryGetSmartQuote(prevChar, activeLang, isSingleQuote, _recentHistory.ToString());
+                var quoteAction = SmartTypography.GetSmartQuoteAction(
+                    prevChar,
+                    activeLang,
+                    isSingleQuote,
+                    _recentHistory.ToString(),
+                    _exclusionManager.Settings.EnableSmartDashes);
 
-                if (smartQuote.HasValue)
+                if (quoteAction.HasValue)
                 {
                     if (_wordBuffer.Length > 0)
                     {
                         HandleDelimiter('\0');
+                        // Re-evaluateactiveLang in case HandleDelimiter switched the language
+                        activeLang = SystemLayoutSwitcher.GetActiveWindowLanguage();
+                        prevChar = _recentHistory.Length > 0 ? _recentHistory[_recentHistory.Length - 1] : '\0';
+                        quoteAction = SmartTypography.GetSmartQuoteAction(
+                            prevChar,
+                            activeLang,
+                            isSingleQuote,
+                            _recentHistory.ToString(),
+                            _exclusionManager.Settings.EnableSmartDashes) ?? quoteAction;
                     }
 
                     _isReplacing = true;
                     try
                     {
-                        InputSynthesizer.ReplaceText(0, smartQuote.Value.ToString());
-                        AppendHistory(smartQuote.Value);
-                        DebugLogger.Log($"[KeyboardHook] Replaced quote: vk=0x{vk:X2}, shift={shiftPressed}, isDouble={isDoubleQuote}, isSingle={isSingleQuote}, lang={activeLang}, prev='{prevChar}', smart='{smartQuote.Value}'");
+                        InputSynthesizer.ReplaceText(quoteAction.Value.backspaces, quoteAction.Value.replacement);
+                        if (_recentHistory.Length >= quoteAction.Value.backspaces)
+                        {
+                            _recentHistory.Length -= quoteAction.Value.backspaces;
+                        }
+                        foreach (char ch in quoteAction.Value.replacement)
+                        {
+                            AppendHistory(ch);
+                        }
+                        DebugLogger.Log($"[KeyboardHook] Replaced quote: vk=0x{vk:X2}, shift={shiftPressed}, isDouble={isDoubleQuote}, isSingle={isSingleQuote}, lang={activeLang}, prev='{prevChar}', bs={quoteAction.Value.backspaces}, repl='{quoteAction.Value.replacement}'");
                         return true;
                     }
                     finally
@@ -370,7 +402,7 @@ public class KeyboardHookManager : IDisposable
             }
         }
 
-        // Smart Dashes: " - " or " -- " -> " — "
+        // Smart Dashes: " - ", " -- ", or line-initial "- " / "-- " -> " — "
         if (typedChar == ' ' && _exclusionManager.Settings.EnableSmartDashes)
         {
             var dash = SmartTypography.CheckSmartDash(_recentHistory.ToString());
@@ -386,6 +418,7 @@ public class KeyboardHookManager : IDisposable
                     }
                     _recentHistory.Append(dash.Value.replacement);
                     _wordBuffer.Clear();
+                    DebugLogger.Log($"[KeyboardHook] Replaced smart dash: bs={dash.Value.backspaces}, repl='{dash.Value.replacement}'");
                     return true;
                 }
                 finally
@@ -447,6 +480,15 @@ public class KeyboardHookManager : IDisposable
                 int charsInWindow = Math.Max(0, currentWord.Length - 1);
                 InputSynthesizer.ReplaceText(charsInWindow, result.TransformedText);
 
+                if (_recentHistory.Length >= currentWord.Length)
+                {
+                    _recentHistory.Length -= currentWord.Length;
+                }
+                foreach (char ch in result.TransformedText)
+                {
+                    AppendHistory(ch);
+                }
+
                 // Reset buffer so subsequent delimiters or keys don't re-transform or jump
                 _wordBuffer.Clear();
 
@@ -501,6 +543,16 @@ public class KeyboardHookManager : IDisposable
                     string textToInsert = delimiter != '\0' ? result.TransformedText + delimiter : result.TransformedText;
                     InputSynthesizer.ReplaceText(currentWord.Length, textToInsert);
 
+                    int historyCharsToRemove = currentWord.Length + (delimiter != '\0' ? 1 : 0);
+                    if (_recentHistory.Length >= historyCharsToRemove)
+                    {
+                        _recentHistory.Length -= historyCharsToRemove;
+                    }
+                    foreach (char ch in textToInsert)
+                    {
+                        AppendHistory(ch);
+                    }
+
                     _previousLanguageBeforeCorrection = previousLang;
                     _lastCorrectedWord = currentWord;
                     _justCorrected = true;
@@ -525,6 +577,16 @@ public class KeyboardHookManager : IDisposable
                     {
                         string textToInsert = delimiter != '\0' ? fixedWord + delimiter : fixedWord;
                         InputSynthesizer.ReplaceText(currentWord.Length, textToInsert);
+
+                        int historyCharsToRemove = currentWord.Length + (delimiter != '\0' ? 1 : 0);
+                        if (_recentHistory.Length >= historyCharsToRemove)
+                        {
+                            _recentHistory.Length -= historyCharsToRemove;
+                        }
+                        foreach (char ch in textToInsert)
+                        {
+                            AppendHistory(ch);
+                        }
 
                         CorrectionsCount++;
                         CorrectionApplied?.Invoke(CorrectionsCount);
@@ -553,7 +615,7 @@ public class KeyboardHookManager : IDisposable
 
     private void AppendHistory(char c)
     {
-        if (_recentHistory.Length >= 32)
+        if (_recentHistory.Length >= 256)
         {
             _recentHistory.Remove(0, 1);
         }

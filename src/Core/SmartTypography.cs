@@ -5,7 +5,8 @@ namespace MovaFlow.Core;
 /// <summary>
 /// Handles smart typography replacements on-the-fly:
 /// - Smart quotes: «» for Ukrainian/Russian, “” for English (supports both " with Shift and ' without Shift)
-/// - Smart dashes: " - " or " -- " -> " — "
+/// - Smart dashes: " - ", " -- ", or line-initial "- " / "-- " -> " — "
+/// - Smart quote + dash closure: «привіт -» or «привіт — » -> «привіт —»
 /// - Ellipsis: "..." -> "…"
 /// - Symbols: (c) -> ©, (r) -> ®, (tm) -> ™
 /// - Stuck Shift: "ПРивіт" -> "Привіт"
@@ -51,16 +52,16 @@ public static class SmartTypography
         char openQuote = isCyrillic ? UkOpeningQuote : EnOpeningQuote;
         char closeQuote = isCyrillic ? UkClosingQuote : EnClosingQuote;
 
+        // Check whether an opening quote is currently unclosed in recentHistory
+        bool hasOpenQuote = !string.IsNullOrEmpty(recentHistory)
+                         && recentHistory.LastIndexOf(openQuote) > recentHistory.LastIndexOf(closeQuote);
+
         // Special handling for single quote / apostrophe (key ' without Shift)
         if (isSingleQuote)
         {
-            // Check whether an opening quote is currently unclosed in recentHistory
-            bool hasOpenQuote = !string.IsNullOrEmpty(recentHistory) 
-                             && recentHistory.LastIndexOf(openQuote) > recentHistory.LastIndexOf(closeQuote);
-
             if (hasOpenQuote)
             {
-                // We have an open quote, so this ' at the end of word is the closing quote!
+                // We have an open quote, so this ' closes the open quote
                 return closeQuote;
             }
 
@@ -70,10 +71,16 @@ public static class SmartTypography
                 return null; // Preserve apostrophe!
             }
         }
+        else if (hasOpenQuote)
+        {
+            // For double quotes: if an opening quote is already active in recentHistory,
+            // always close it (even after a dash or space, e.g. «привіт —»)
+            return closeQuote;
+        }
 
         // Opening if at start of buffer, after whitespace, or after opening punctuation
-        bool isOpen = previousChar == '\0' 
-                   || char.IsWhiteSpace(previousChar) 
+        bool isOpen = previousChar == '\0'
+                   || char.IsWhiteSpace(previousChar)
                    || "([{<\u201E\u00AB\u201C\"'`".IndexOf(previousChar) >= 0;
 
         // If user immediately types another quote right after an opening quote, produce the closing quote to form pair («» / “”)
@@ -86,20 +93,74 @@ public static class SmartTypography
     }
 
     /// <summary>
+    /// Computes the exact replacement action (backspaces and text to insert) when a quote key is pressed.
+    /// Handles smart dash + closing quote combinations such as:
+    /// - "«привіт — " + quote -> backspace 1 (space), insert "»" -> "«привіт —»"
+    /// - "«привіт -"  + quote -> backspace 1 ('-'),   insert "—»" -> "«привіт —»"
+    /// - "«привіт --" + quote -> backspace 2 ("--"),  insert "—»" -> "«привіт —»"
+    /// </summary>
+    public static (int backspaces, string replacement, char quoteChar)? GetSmartQuoteAction(
+        char previousChar,
+        string? language,
+        bool isSingleQuote = false,
+        string? recentHistory = null,
+        bool enableSmartDashes = true)
+    {
+        char? quote = TryGetSmartQuote(previousChar, language, isSingleQuote, recentHistory);
+        if (!quote.HasValue)
+        {
+            return null;
+        }
+
+        char q = quote.Value;
+        bool isClosing = (q == UkClosingQuote || q == EnClosingQuote);
+
+        if (isClosing && !string.IsNullOrEmpty(recentHistory))
+        {
+            if (recentHistory.EndsWith(EmDashWithSpace, StringComparison.Ordinal))
+            {
+                return (1, q.ToString(), q);
+            }
+
+            if (enableSmartDashes)
+            {
+                if (recentHistory.EndsWith(" --", StringComparison.Ordinal))
+                {
+                    return (2, "\u2014" + q, q);
+                }
+
+                if (recentHistory.EndsWith(" -", StringComparison.Ordinal))
+                {
+                    return (1, "\u2014" + q, q);
+                }
+            }
+        }
+
+        return (0, q.ToString(), q);
+    }
+
+    /// <summary>
     /// Checks for smart dash replacement when Space is typed.
-    /// If history ends with " --" -> replaces 2 hyphens with "— " (backspace 2, insert "— ")
-    /// If history ends with " -"  -> replaces 1 hyphen with "— " (backspace 1, insert "— ")
+    /// If history ends with " --" or is "--" at start of line -> replaces 2 hyphens with "— " (backspace 2, insert "— ")
+    /// If history ends with " -"  or is "-"  at start of line -> replaces 1 hyphen with "— " (backspace 1, insert "— ")
+    /// Intercepting "- " at start of line also prevents Windows 11 Notepad from converting "- " into a bullet point (•).
     /// </summary>
     public static (int backspaces, string replacement)? CheckSmartDash(string history)
     {
         if (string.IsNullOrEmpty(history)) return null;
 
-        if (history.EndsWith(" --", StringComparison.Ordinal))
+        if (history.EndsWith(" --", StringComparison.Ordinal) ||
+            history.Equals("--", StringComparison.Ordinal) ||
+            history.EndsWith("\n--", StringComparison.Ordinal) ||
+            history.EndsWith("\r--", StringComparison.Ordinal))
         {
             return (2, EmDashWithSpace);
         }
 
-        if (history.EndsWith(" -", StringComparison.Ordinal))
+        if (history.EndsWith(" -", StringComparison.Ordinal) ||
+            history.Equals("-", StringComparison.Ordinal) ||
+            history.EndsWith("\n-", StringComparison.Ordinal) ||
+            history.EndsWith("\r-", StringComparison.Ordinal))
         {
             return (1, EmDashWithSpace);
         }

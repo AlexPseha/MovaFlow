@@ -5,6 +5,7 @@ $env:PATH = "$dotnetDir;$env:PATH"
 Set-Location -Path $PSScriptRoot
 
 Get-Process *MovaFlow* -ErrorAction SilentlyContinue | Stop-Process -Force
+Start-Sleep -Milliseconds 500
 
 Write-Host "=== 1/3. Publishing MovaFlow Portable (Standalone, ~67 MB) ==="
 dotnet publish MovaFlow.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true -o publish_portable
@@ -16,6 +17,12 @@ if ($LASTEXITCODE -ne 0) {
 
 Copy-Item "publish_portable\MovaFlow.exe" "MovaFlow-Portable.exe" -Force
 Write-Host "MovaFlow-Portable.exe ready!"
+
+$installedExe = Join-Path $env:LOCALAPPDATA "Programs\MovaFlow\MovaFlow.exe"
+if (Test-Path -LiteralPath (Split-Path $installedExe -Parent)) {
+    Copy-Item "MovaFlow-Portable.exe" $installedExe -Force -ErrorAction SilentlyContinue
+    Write-Host "Updated installed binary at $installedExe"
+}
 
 Write-Host "=== 2/3. Publishing MovaFlow Lite (Framework-Dependent, ~2.8 MB) ==="
 dotnet publish MovaFlow.csproj -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -o publish_lite
@@ -53,3 +60,6 @@ foreach ($d in $dirsToClean) {
 
 Write-Host "All targets built successfully:"
 Get-Item 'MovaFlow-Portable.exe', 'MovaFlow-Lite.exe', 'MovaFlow-Setup.exe' | Format-Table Name, Length, LastWriteTime
+
+Write-Host "Starting MovaFlow-Portable.exe in interactive session..."
+explorer.exe (Join-Path $PSScriptRoot "MovaFlow-Portable.exe")
