@@ -17,7 +17,8 @@ public record TransformationResult(
 public record WordAnalyzerOptions(
     bool EnableUkrainian = true,
     bool EnableEnglish = true,
-    bool EnableRussian = true
+    bool EnableRussian = true,
+    Func<string, bool>? IsWordExcluded = null
 );
 
 public class WordAnalyzer
@@ -31,6 +32,13 @@ public class WordAnalyzer
         InitializeVocabularies();
     }
 
+    public bool IsKnownWord(string word)
+    {
+        if (string.IsNullOrWhiteSpace(word)) return false;
+        string lower = word.Trim().ToLowerInvariant();
+        return _ukDictionary.Contains(lower) || _enDictionary.Contains(lower) || _ruDictionary.Contains(lower);
+    }
+
     public TransformationResult Analyze(
         string rawWord,
         ConversionMode mode,
@@ -40,6 +48,12 @@ public class WordAnalyzer
         options ??= new WordAnalyzerOptions();
 
         if (string.IsNullOrWhiteSpace(rawWord))
+        {
+            return new TransformationResult(false, rawWord, rawWord, string.Empty);
+        }
+
+        // Exclusion check (custom words, acronyms, ignored words)
+        if (options.IsWordExcluded != null && options.IsWordExcluded(rawWord))
         {
             return new TransformationResult(false, rawWord, rawWord, string.Empty);
         }
@@ -72,8 +86,13 @@ public class WordAnalyzer
 
             if (isOnTheFly)
             {
-                if (NgramDetector.IsLikelyEnglishMistypedAsCyrillic(rawWord) ||
-                    (!_ukDictionary.HasPrefix(rawWord) && !_ruDictionary.HasPrefix(rawWord) && _enDictionary.HasPrefix(candidateEn)))
+                // For 2-letter words like "зу", "не", "де", "як", only convert if it matches an impossible Cyrillic prefix (e.g. "иг" -> "ug").
+                // Never convert 2-letter Cyrillic syllables just because English has a 2-letter word (like "pe", "re", "to")!
+                bool isShortWord = rawWord.Length <= 2;
+                bool isImpossibleCyrillic = NgramDetector.IsLikelyEnglishMistypedAsCyrillic(rawWord);
+
+                if (isImpossibleCyrillic ||
+                    (!isShortWord && !_ukDictionary.HasPrefix(rawWord) && !_ruDictionary.HasPrefix(rawWord) && _enDictionary.HasPrefix(candidateEn)))
                 {
                     return new TransformationResult(true, rawWord, candidateEn, "en");
                 }
@@ -85,6 +104,12 @@ public class WordAnalyzer
 
                 if (!isSlavicWord && isEnWord)
                 {
+                    // Protection against converting 2-letter Ukrainian syllables into English words (e.g. "зу" -> "pe")
+                    if (rawWord.Length <= 2 && !NgramDetector.IsLikelyEnglishMistypedAsCyrillic(rawWord))
+                    {
+                        return new TransformationResult(false, rawWord, rawWord, string.Empty);
+                    }
+
                     return new TransformationResult(true, rawWord, candidateEn, "en");
                 }
 
@@ -125,11 +150,23 @@ public class WordAnalyzer
                 {
                     return new TransformationResult(true, rawWord, candidateUk, "uk");
                 }
-                if (impossibleEn)
+                if (ukPrefix && ruPrefix)
                 {
-                    // Fallback preference: UK if enabled, otherwise RU
                     if (ukEnabled) return new TransformationResult(true, rawWord, candidateUk, "uk");
                     if (ruEnabled) return new TransformationResult(true, rawWord, candidateRu, "ru");
+                }
+                if (impossibleEn)
+                {
+                    // Fallback preference: only convert if candidateUk / candidateRu has a prefix or word in the dictionary!
+                    // Prohibit converting English words/identifiers (like CamelCase "OrdersWithTrips") into gibberish "ЩквукіЦшерЕк"!
+                    if (ukEnabled && (_ukDictionary.HasPrefix(candidateUk) || _ukDictionary.Contains(candidateUk)))
+                    {
+                        return new TransformationResult(true, rawWord, candidateUk, "uk");
+                    }
+                    if (ruEnabled && (_ruDictionary.HasPrefix(candidateRu) || _ruDictionary.Contains(candidateRu)))
+                    {
+                        return new TransformationResult(true, rawWord, candidateRu, "ru");
+                    }
                 }
             }
         }
@@ -155,8 +192,10 @@ public class WordAnalyzer
                 }
                 if (NgramDetector.IsLikelyCyrillicMistypedAsEnglish(rawWord))
                 {
-                    if (ukEnabled) return new TransformationResult(true, rawWord, candidateUk, "uk");
-                    if (ruEnabled) return new TransformationResult(true, rawWord, candidateRu, "ru");
+                    if (ukEnabled && (_ukDictionary.Contains(candidateUk) || _ukDictionary.HasPrefix(candidateUk)))
+                        return new TransformationResult(true, rawWord, candidateUk, "uk");
+                    if (ruEnabled && (_ruDictionary.Contains(candidateRu) || _ruDictionary.HasPrefix(candidateRu)))
+                        return new TransformationResult(true, rawWord, candidateRu, "ru");
                 }
             }
         }

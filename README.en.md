@@ -12,10 +12,11 @@ MovaFlow automatically switches the keyboard layout when a word was typed in the
 
 **[⬇︎ Latest version](../../releases/latest)**
 
-* **`MovaFlow-Setup.exe`** - quick installer with Desktop shortcuts, Start Menu integration, and optional autostart.
-* **`MovaFlow.exe`** - portable version (Single-File): runs directly without installation.
+* **`MovaFlow-Setup.exe`** — complete setup wizard (Dual Payload: includes both Portable and Lite payloads) with Desktop and Start Menu shortcuts, and autostart configuration.
+* **`MovaFlow-Portable.exe`** — standalone portable build (Single-File, ~71 MB): zero dependencies, requires no runtime installation, runs straight from any folder or USB drive.
+* **`MovaFlow-Lite.exe`** — lightweight build (~1.5 MB): instant startup and compact footprint for PCs with .NET 9 Desktop Runtime already installed.
 
-> **Requirements:** Windows 10 or Windows 11 (64-bit). The .NET 9.0 Desktop Runtime is embedded in the release.
+> **Requirements:** Windows 10 or Windows 11 (64-bit). The .NET 9.0 Desktop Runtime is embedded in the Portable and Setup releases.
 
 ---
 
@@ -24,6 +25,9 @@ MovaFlow automatically switches the keyboard layout when a word was typed in the
 ### Layout & Typing Intelligence
 * **On-the-fly correction:** by the 3rd or 4th character, MovaFlow detects that a word is being typed in the wrong layout (`ghb…`) and seamlessly switches it while you type.
 * **Delimiter-based correction:** words not recognized during typing are evaluated after pressing Space, Tab, Enter, or punctuation: `ghbdsn?` instantly becomes `привіт,`.
+* **Revert layout on Backspace:** pressing `Backspace` immediately after an auto-correction automatically reverts the Windows keyboard layout to the previous language, breaking unwanted correction loops.
+* **CamelCase & PascalCase Protection:** code identifiers like `OrdersWithTrips` are preserved intact and never falsely converted to Cyrillic.
+* **Short Syllable Protection:** 2-letter Cyrillic syllables (such as `зу`) are safeguarded against accidental conversion into short English words (like `pe`).
 * **Embedded frequency dictionaries:** 25,000 top words for Ukrainian (UKR), English (ENG), and Russian (RUS) from the HermitDave corpus. Prefix tree (Trie) search takes less than 1 microsecond.
 * **Full alphabet support:** handles unique letters like `і`, `ї`, `є`, `ґ`, apostrophe, as well as `б` and `ю` without false delimiter triggers.
 * **Reliable Windows 11 system layout switching:** guaranteed synchronization of the active system language across all modern and legacy windows (WinUI 3, UWP, Chromium, Electron, Win32).
@@ -32,10 +36,20 @@ MovaFlow automatically switches the keyboard layout when a word was typed in the
   * *Ukrainian to English only.*
   * *English to Ukrainian only.*
 
-### Security & Password Protection (Security-First)
+### Smart Typography & Text Formatting
+* **Smart Quotes:** typing `"` automatically inserts the correct quotation marks based on the active layout:
+  * Cyrillic (Ukrainian/Russian): guillemets `«` and `»` (e.g., `«MovaFlow»`). Typing `""` produces a pair `«»`.
+  * English: curly quotes `“` and `”`.
+* **Smart Dashes:** typing ` - ` or ` -- ` (hyphens surrounded by spaces) automatically converts into an em-dash ` — ` (command-line flags like `--help` remain untouched).
+* **Ellipsis:** three dots `...` are automatically transformed into a single ellipsis character `…`.
+* **Special Symbols:** `(c)` or `(C)` → `©`, `(r)` or `(R)` → `®`, `(tm)` or `(TM)` → `™`.
+* **Stuck Shift Fix:** automatically corrects words typed with an accidental double uppercase letter (e.g., `ПРивіт` → `Привіт`, `THis` → `This`).
+
+### Security, Privacy & Exclusions (Security-First)
 * 🛡️ **Zero Password Exposure:** detects password fields automatically via Windows UI Automation (`IsPassword == true`) and native `ES_PASSWORD` styles. Key tracking is suspended immediately and memory buffers are zeroed out.
+* 📝 **Custom Excluded Words:** user-defined list of stop-words, acronyms, and technical jargon (`NNG`, `API`, `SQL`). MovaFlow ignores them across mirror layouts.
 * 🚫 **Process Exclusions:** automatically pauses in command terminals (`cmd.exe`, `powershell.exe`, Windows Terminal), IDEs, and password managers (KeePass, 1Password, Bitwarden).
-* 🌐 **Website Domain Exclusions:** safe typing on banking websites (`privat24.ua`, `monobank.ua`) - analysis pauses automatically when the respective browser tab is active.
+* 🌐 **Website Domain Exclusions:** safe typing on banking websites (`privat24.ua`, `monobank.ua`) — analysis pauses automatically when the respective browser tab is active.
 * 🔒 **100% Offline & Private:** no disk logging, no network requests, zero telemetry. Text exists only in a short in-memory ring buffer (up to 64 chars) and is erased immediately after word completion or pressing Enter/Escape.
 
 ### Interface & Controls
@@ -44,7 +58,8 @@ MovaFlow automatically switches the keyboard layout when a word was typed in the
 * **Settings Window:**
   * Single-click interface language switching (Ukrainian / English).
   * Toggle enabled layouts (UKR, ENG, RUS).
-  * Manage excluded applications and websites.
+  * Independent switches for typography features: smart quotes, smart dashes, ellipsis/symbols, stuck Shift fix.
+  * Manage excluded applications, websites, and custom words.
   * Configurable autostart with Windows.
 
 ---
@@ -53,6 +68,7 @@ MovaFlow automatically switches the keyboard layout when a word was typed in the
 
 | Action | How to perform |
 |---|---|
+| **Revert layout on Backspace** | Press `Backspace` immediately after an auto-correction |
 | **Pause / Resume** | Click the tray icon or choose "Pause / Resume" from the context menu |
 | **Open Settings** | Right-click tray icon → "Settings..." |
 | **Change Conversion Mode** | Tray menu → "Mode" → choose preferred mode |
@@ -80,22 +96,22 @@ The project is written in **C# (.NET 9.0 Windows Forms / Win32 API)** with a mod
 git clone https://github.com/AlexPseha/MovaFlow.git
 cd MovaFlow
 
-# Run the automated unit test suite (41 tests)
+# Run the automated unit test suite (78 tests)
 dotnet run -- --test
 
-# Build release binaries (MovaFlow.exe and MovaFlow-Setup.exe)
+# Build release packages (MovaFlow-Portable.exe, MovaFlow-Lite.exe, MovaFlow-Setup.exe)
 powershell -ExecutionPolicy Bypass -File .\build_and_publish.ps1
 ```
 
 ### Code Structure
-* `src/Core/` - statistical language detection, N-gram scoring, Trie dictionaries, character mapping.
-* `src/Input/` - low-level keyboard hook (`WH_KEYBOARD_LL`), Win32 input synthesis, system layout switching.
-* `src/Security/` - UI Automation password field detection, app and website exclusion lists.
-* `src/Localization/` - bilingual UI strings (Ukrainian & English).
-* `src/UI/` - Windows system tray context menu (`TrayApplicationContext`) and settings window (`SettingsForm`).
-* `installer/` - standalone setup wizard project (`MovaFlow-Setup`).
-* `resources/` - frequency dictionaries and multi-resolution `movaflow.ico`.
-* `tests/` - built-in test suite (`UnitTests.cs`) covering dictionaries, exclusions, and localization.
+* `src/Core/` — statistical language detection, N-gram scoring, Trie dictionaries, character mapping, `SmartTypography.cs` engine.
+* `src/Input/` — low-level keyboard hook (`WH_KEYBOARD_LL`), Win32 input synthesis, system layout switching.
+* `src/Security/` — UI Automation password field detection, app, website, and custom word exclusion lists.
+* `src/Localization/` — bilingual UI strings (Ukrainian & English).
+* `src/UI/` — Windows system tray context menu (`TrayApplicationContext`) and settings window (`SettingsForm`).
+* `installer/` — standalone setup wizard project (`MovaFlow-Setup`, Dual Payload).
+* `resources/` — frequency dictionaries and multi-resolution `movaflow.ico`.
+* `tests/` — built-in test suite (`UnitTests.cs`) covering dictionaries, exclusions, typography, and localization.
 
 ---
 

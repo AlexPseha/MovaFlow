@@ -70,7 +70,10 @@ public class KeyboardHookManager : IDisposable
     private readonly LowLevelKeyboardProc _proc;
     private IntPtr _hookId = IntPtr.Zero;
     private readonly StringBuilder _wordBuffer = new();
+    private readonly StringBuilder _recentHistory = new();
     private volatile bool _isReplacing;
+    private bool _justCorrected;
+    private string? _previousLanguageBeforeCorrection;
 
     public bool IsPaused { get; set; }
     public int CorrectionsCount { get; private set; }
@@ -157,6 +160,7 @@ public class KeyboardHookManager : IDisposable
         if (!_securityGuard.IsInputSecureAndAllowed())
         {
             ResetBuffer();
+            _justCorrected = false;
             return false;
         }
 
@@ -164,6 +168,8 @@ public class KeyboardHookManager : IDisposable
         if (IsResetKey(vk))
         {
             ResetBuffer();
+            _recentHistory.Clear();
+            _justCorrected = false;
             return false;
         }
 
@@ -175,18 +181,39 @@ public class KeyboardHookManager : IDisposable
                 HandleDelimiter('\0');
             }
             ResetBuffer();
+            _recentHistory.Clear();
+            _justCorrected = false;
             return false; // let Windows execute Enter cleanly
         }
 
         // 4. Backspace
         if (vk == 0x08)
         {
+            // Revert layout on immediate Backspace after an auto-correction
+            if (_justCorrected)
+            {
+                if (_exclusionManager.Settings.EnableRevertOnBackspace &&
+                    _exclusionManager.Settings.SwitchSystemLayout &&
+                    !string.IsNullOrEmpty(_previousLanguageBeforeCorrection))
+                {
+                    SystemLayoutSwitcher.SwitchLanguage(IntPtr.Zero, _previousLanguageBeforeCorrection);
+                }
+                _justCorrected = false;
+                _previousLanguageBeforeCorrection = null;
+            }
+
             if (_wordBuffer.Length > 0)
             {
                 _wordBuffer.Length--;
             }
+            if (_recentHistory.Length > 0)
+            {
+                _recentHistory.Length--;
+            }
             return false;
         }
+
+        _justCorrected = false;
 
         // 5. Translate Key to Unicode Char
         char typedChar = GetCharFromKey((uint)vk, (uint)scanCode);
@@ -194,6 +221,108 @@ public class KeyboardHookManager : IDisposable
         {
             return false;
         }
+
+        // Smart Quotes: replace '"' with language-aware «» or “”
+        if (typedChar == '"' && _exclusionManager.Settings.EnableSmartQuotes)
+        {
+            if (_wordBuffer.Length > 0)
+            {
+                HandleDelimiter('\0');
+            }
+
+            char prevChar = _recentHistory.Length > 0 ? _recentHistory[_recentHistory.Length - 1] : '\0';
+            string activeLang = SystemLayoutSwitcher.GetActiveWindowLanguage();
+            char smartQuote = SmartTypography.GetSmartQuote(prevChar, activeLang);
+
+            _isReplacing = true;
+            try
+            {
+                InputSynthesizer.ReplaceText(0, smartQuote.ToString());
+                AppendHistory(smartQuote);
+                return true;
+            }
+            finally
+            {
+                _isReplacing = false;
+            }
+        }
+
+        // Smart Typography: Ellipsis "..."
+        if (typedChar == '.' && _exclusionManager.Settings.EnableSmartTypography)
+        {
+            var ellipsis = SmartTypography.CheckEllipsis(_recentHistory.ToString());
+            if (ellipsis != null)
+            {
+                _isReplacing = true;
+                try
+                {
+                    InputSynthesizer.ReplaceText(ellipsis.Value.backspaces, ellipsis.Value.replacement);
+                    if (_recentHistory.Length >= ellipsis.Value.backspaces)
+                    {
+                        _recentHistory.Length -= ellipsis.Value.backspaces;
+                    }
+                    _recentHistory.Append(ellipsis.Value.replacement);
+                    _wordBuffer.Clear();
+                    return true;
+                }
+                finally
+                {
+                    _isReplacing = false;
+                }
+            }
+        }
+
+        // Smart Typography: Symbols like (c) -> ©, (r) -> ®, (tm) -> ™
+        if (typedChar == ')' && _exclusionManager.Settings.EnableSmartTypography)
+        {
+            var symbol = SmartTypography.CheckSymbols(_recentHistory.ToString());
+            if (symbol != null)
+            {
+                _isReplacing = true;
+                try
+                {
+                    InputSynthesizer.ReplaceText(symbol.Value.backspaces, symbol.Value.replacement);
+                    if (_recentHistory.Length >= symbol.Value.backspaces)
+                    {
+                        _recentHistory.Length -= symbol.Value.backspaces;
+                    }
+                    _recentHistory.Append(symbol.Value.replacement);
+                    _wordBuffer.Clear();
+                    return true;
+                }
+                finally
+                {
+                    _isReplacing = false;
+                }
+            }
+        }
+
+        // Smart Dashes: " - " or " -- " -> " — "
+        if (typedChar == ' ' && _exclusionManager.Settings.EnableSmartDashes)
+        {
+            var dash = SmartTypography.CheckSmartDash(_recentHistory.ToString());
+            if (dash != null)
+            {
+                _isReplacing = true;
+                try
+                {
+                    InputSynthesizer.ReplaceText(dash.Value.backspaces, dash.Value.replacement);
+                    if (_recentHistory.Length >= dash.Value.backspaces)
+                    {
+                        _recentHistory.Length -= dash.Value.backspaces;
+                    }
+                    _recentHistory.Append(dash.Value.replacement);
+                    _wordBuffer.Clear();
+                    return true;
+                }
+                finally
+                {
+                    _isReplacing = false;
+                }
+            }
+        }
+
+        AppendHistory(typedChar);
 
         // 6. Delimiters (Space, Tab, Punctuation)
         if (IsWordDelimiter(typedChar))
@@ -224,6 +353,7 @@ public class KeyboardHookManager : IDisposable
             _isReplacing = true;
             try
             {
+                string previousLang = SystemLayoutSwitcher.GetActiveWindowLanguage();
                 if (_exclusionManager.Settings.SwitchSystemLayout)
                 {
                     SystemLayoutSwitcher.SwitchLanguage(IntPtr.Zero, result.TargetLanguage);
@@ -236,6 +366,9 @@ public class KeyboardHookManager : IDisposable
 
                 // Reset buffer so subsequent delimiters or keys don't re-transform or jump
                 _wordBuffer.Clear();
+
+                _previousLanguageBeforeCorrection = previousLang;
+                _justCorrected = true;
 
                 CorrectionsCount++;
                 CorrectionApplied?.Invoke(CorrectionsCount);
@@ -263,6 +396,7 @@ public class KeyboardHookManager : IDisposable
                 _isReplacing = true;
                 try
                 {
+                    string previousLang = SystemLayoutSwitcher.GetActiveWindowLanguage();
                     if (_exclusionManager.Settings.SwitchSystemLayout)
                     {
                         SystemLayoutSwitcher.SwitchLanguage(IntPtr.Zero, result.TargetLanguage);
@@ -271,6 +405,9 @@ public class KeyboardHookManager : IDisposable
                     // Replace typed word. If delimiter is '\0' (e.g. on Enter), do not append delimiter char.
                     string textToInsert = delimiter != '\0' ? result.TransformedText + delimiter : result.TransformedText;
                     InputSynthesizer.ReplaceText(currentWord.Length, textToInsert);
+
+                    _previousLanguageBeforeCorrection = previousLang;
+                    _justCorrected = true;
 
                     CorrectionsCount++;
                     CorrectionApplied?.Invoke(CorrectionsCount);
@@ -281,15 +418,46 @@ public class KeyboardHookManager : IDisposable
                     _isReplacing = false;
                 }
             }
+            else if (_exclusionManager.Settings.EnableStuckShiftFix)
+            {
+                string? fixedWord = SmartTypography.TryFixStuckShift(currentWord, w => _wordAnalyzer.IsKnownWord(w));
+                if (fixedWord != null)
+                {
+                    _isReplacing = true;
+                    try
+                    {
+                        string textToInsert = delimiter != '\0' ? fixedWord + delimiter : fixedWord;
+                        InputSynthesizer.ReplaceText(currentWord.Length, textToInsert);
+
+                        CorrectionsCount++;
+                        CorrectionApplied?.Invoke(CorrectionsCount);
+                        handled = (delimiter != '\0');
+                    }
+                    finally
+                    {
+                        _isReplacing = false;
+                    }
+                }
+            }
         }
         ResetBuffer();
         return handled;
     }
 
+    private void AppendHistory(char c)
+    {
+        if (_recentHistory.Length >= 32)
+        {
+            _recentHistory.Remove(0, 1);
+        }
+        _recentHistory.Append(c);
+    }
+
     private WordAnalyzerOptions GetAnalyzerOptions() => new(
         EnableUkrainian: _exclusionManager.Settings.EnableUkrainianLayout,
         EnableEnglish: _exclusionManager.Settings.EnableEnglishLayout,
-        EnableRussian: _exclusionManager.Settings.EnableRussianLayout
+        EnableRussian: _exclusionManager.Settings.EnableRussianLayout,
+        IsWordExcluded: _exclusionManager.IsWordExcluded
     );
 
     private void ResetBuffer()

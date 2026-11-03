@@ -97,7 +97,7 @@ public static class NgramDetector
             return true;
 
         // Phonotactic heuristic: 4 or more consecutive consonants without vowels
-        if (HasConsecutiveConsonants(lower, 4, isEnglish: true))
+        if (HasConsecutiveConsonants(text, 4, isEnglish: true))
             return true;
 
         return false;
@@ -116,7 +116,7 @@ public static class NgramDetector
             return true;
 
         // Consonant clustering check
-        if (HasConsecutiveConsonants(lower, 4, isEnglish: false))
+        if (HasConsecutiveConsonants(text, 4, isEnglish: false))
             return true;
 
         return false;
@@ -125,8 +125,19 @@ public static class NgramDetector
     private static bool HasConsecutiveConsonants(string word, int limit, bool isEnglish)
     {
         int count = 0;
-        foreach (char c in word)
+        char prevChar = '\0';
+        for (int i = 0; i < word.Length; i++)
         {
+            char rawC = word[i];
+            // In CamelCase/PascalCase (e.g. OrdersWithTrips), an uppercase letter after a lowercase letter
+            // indicates a new sub-word boundary. Reset the consecutive consonant count!
+            if (i > 0 && char.IsUpper(rawC) && char.IsLower(prevChar))
+            {
+                count = 0;
+            }
+            prevChar = rawC;
+
+            char c = char.ToLowerInvariant(rawC);
             if (isEnglish)
             {
                 if ("bcdfghjklmnpqrstvwxyz".Contains(c))
